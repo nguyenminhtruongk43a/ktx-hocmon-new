@@ -2,6 +2,7 @@
 import React, { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Sidebar from './Sidebar';
+import GlobalKtxSwitcher from './GlobalKtxSwitcher';
 import { useAuth } from '@/context/AuthContext';
 
 const PUBLIC_PATHS = ['/sign-up-login', '/register'];
@@ -52,6 +53,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-screen bg-background">
       <Sidebar />
       <main className="flex-1 min-w-0 lg:pt-0 pt-14 overflow-x-hidden">
+        <GlobalKtxSwitcher />
         {children}
       </main>
     </div>

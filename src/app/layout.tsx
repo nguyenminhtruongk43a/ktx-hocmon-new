@@ -7,6 +7,7 @@ import '@/styles/index.css';
 import { AuthProvider } from '@/context/AuthContext';
 import { AuditProvider } from '@/context/AuditContext';
 import { WorkerProvider } from '@/context/WorkerContext';
+import { KtxScopeProvider } from '@/context/KtxScopeContext';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -22,7 +23,7 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: 'KTXManager — Quản Lý Ký Túc Xá Công Nhân',
-  description: 'Hệ thống quản lý ký túc xá nội bộ cho công nhân xây dựng — theo dõi phòng, công nhân và tổ trưởng tại KTX 2.',
+  description: 'Hệ thống quản lý ký túc xá nội bộ cho công nhân xây dựng — theo dõi phòng, giường, công nhân và tổ trưởng trên toàn bộ các khu KTX Hóc Môn.',
   icons: {
     icon: [{ url: '/favicon.ico', type: 'image/x-icon' }],
   },
@@ -37,7 +38,9 @@ export default function RootLayout({
         <AuthProvider>
           <AuditProvider>
             <WorkerProvider>
-              {children}
+              <KtxScopeProvider>
+                {children}
+              </KtxScopeProvider>
             </WorkerProvider>
           </AuditProvider>
         </AuthProvider>

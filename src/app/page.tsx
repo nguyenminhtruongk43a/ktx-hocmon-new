@@ -3,7 +3,9 @@ import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation';
 import AppLayout from '@/components/AppLayout';
 import { useWorkers } from '@/context/WorkerContext';
-import { getUniqueKTX, getUniqueBuildings, getUniqueRooms, countUniqueBuildings, aggregateKtxOccupancy, ROOM_CAPACITY } from '@/data/workers';
+import { getUniqueKTX, getUniqueBuildings, getUniqueRooms, countUniqueBuildings, aggregateKtxOccupancy, compareNatural, ROOM_CAPACITY } from '@/data/workers';
+import { useKtxScope } from '@/context/KtxScopeContext';
+import { normalizeGender } from '@/lib/normalize';
 import KtxOccupancyBreakdown from './components/KtxOccupancyBreakdown';
 import { Users, LayoutGrid, Percent, AlertCircle, FileSpreadsheet, Wifi, ChevronDown, Search, X, Download, UserPlus, AlertTriangle, TrendingUp, TrendingDown, XCircle, GitBranch, HardHat, VenusAndMars } from 'lucide-react';
 import dynamic from 'next/dynamic';
@@ -267,22 +269,14 @@ function BlockTitle({
 export default function OccupancyDashboardPage() {
   const { workers, loading, addWorker } = useWorkers();
   const router = useRouter();
-  const [selectedKTX, setSelectedKTX] = useState<string>('all');
+  const { scope: selectedKTX, setScope: setSelectedKTX, scopedWorkers } = useKtxScope();
   const [drawerRoom, setDrawerRoom] = useState<{ ktx: string; building: string; room: string } | null>(null);
   const [selectedBuilding, setSelectedBuilding] = useState<string | null>(null);
   const [todayStats, setTodayStats] = useState<{ entered: number; left: number }>({ entered: 0, left: 0 });
-  const [genderStats, setGenderStats] = useState({ male: 0, female: 0 });
-  const [contractorStats, setContractorStats] = useState<[string, number][]>([]);
-  const [dashboardTotal, setDashboardTotal] = useState(0);
-  const [statsLoading, setStatsLoading] = useState(true);
-  const [genderByKtx, setGenderByKtx] = useState<Record<string, { male: number; female: number }>>({});
-  const [contractorByKtx, setContractorByKtx] = useState<Record<string, [string, number][]>>({});
   // Block assignments: map of "KTX X - Dãy Y" -> staffName
   const [blockAssignments, setBlockAssignments] = useState<BlockAssignment[]>([]);
   // Quick-add modal state
   const [showQuickAdd, setShowQuickAdd] = useState(false);
-  // Room unit map: "ktx||building||room" -> don_vi
-  const [roomUnitMap, setRoomUnitMap] = useState<Record<string, string>>({});
 
   const isEmpty = !loading && workers.length === 0;
 
@@ -290,10 +284,7 @@ export default function OccupancyDashboardPage() {
   const allKTX = useMemo(() => getUniqueKTX(workers), [workers]);
 
   // Filtered workers by selected KTX
-  const filteredWorkers = useMemo(() =>
-    selectedKTX === 'all' ? workers : workers.filter(w => w.ktx === selectedKTX),
-    [workers, selectedKTX]
-  );
+  const filteredWorkers = scopedWorkers;
 
   const allBuildings = useMemo(() => getUniqueBuildings(filteredWorkers), [filteredWorkers]);
 
@@ -318,142 +309,63 @@ export default function OccupancyDashboardPage() {
       });
   }, []);
 
-  // ── Load room → don_vi mapping ─────────────────────────────────────────────
-  useEffect(() => {
-    const supabase = createClient();
-    const fetchRoomUnits = async () => {
-      let allData: { ktx: string; day: string; phong_so: string; don_vi: string }[] = [];
-      let from = 0;
-      const SIZE = 1000;
-      let hasMore = true;
-      while (hasMore) {
-        const { data: batch } = await supabase
-          .from('workers')
-          .select('ktx, day, phong_so, don_vi')
-          .not('phong_so', 'is', null)
-          .not('don_vi', 'is', null)
-          .range(from, from + SIZE - 1);
-        if (!batch || batch.length === 0) { hasMore = false; break; }
-        allData = allData.concat(batch as { ktx: string; day: string; phong_so: string; don_vi: string }[]);
-        if (batch.length < SIZE) hasMore = false; else from += SIZE;
+  // ── Room → đơn vị map and gender/contractor stats, derived from realtime state ──
+  const roomUnitMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const w of workers) {
+      if (!w.ktx || !w.day || !w.phongSo || !w.donVi) continue;
+      const key = `${w.ktx}||${w.day}||${w.phongSo}`;
+      if (!map[key]) map[key] = w.donVi;
+    }
+    return map;
+  }, [workers]);
+
+  const { genderStats, genderByKtx, contractorStats, contractorByKtx } = useMemo(() => {
+    let male = 0;
+    let female = 0;
+    const genderPerKtx: Record<string, { male: number; female: number }> = {};
+    const donViTotals = new Map<string, number>();
+    const donViDisplay = new Map<string, string>();
+    const donViPerKtx = new Map<string, Map<string, number>>();
+
+    for (const w of scopedWorkers) {
+      const gender = normalizeGender(w.gioiTinh);
+      const isMale = gender === 'Nam';
+      const isFemale = gender === 'Nữ';
+      if (isMale) male++;
+      else if (isFemale) female++;
+      if (w.ktx) {
+        const g = (genderPerKtx[w.ktx] ??= { male: 0, female: 0 });
+        if (isMale) g.male++;
+        else if (isFemale) g.female++;
       }
-      // Build map: first non-empty don_vi wins per room
-      const map: Record<string, string> = {};
-      allData.forEach(row => {
-        if (!row.ktx || !row.day || !row.phong_so || !row.don_vi?.trim()) return;
-        const key = `${row.ktx}||${row.day}||${row.phong_so}`;
-        if (!map[key]) map[key] = row.don_vi.trim();
-      });
-      setRoomUnitMap(map);
-    };
-    fetchRoomUnits();
-  }, [workers.length]);
-
-  // Track workers length to trigger stats re-fetch when data changes
-  const workersLength = workers.length;
-
-  useEffect(() => {
-    let active = true;
-    const fetchStats = async () => {
-      setStatsLoading(true);
-      const supabase = createClient();
-
-      try {
-        // 1. Total count
-        const { count: total } = await supabase
-          .from('workers')
-          .select('*', { count: 'exact', head: true });
-
-        // 2+4. Paginated fetch for all workers' ktx, gioi_tinh, don_vi (bypasses 1000-row Supabase limit)
-        let allWorkersData: { ktx: string; gioi_tinh: string; don_vi: string }[] = [];
-        let fetchFrom = 0;
-        const FETCH_SIZE = 1000;
-        let fetchHasMore = true;
-        while (fetchHasMore) {
-          const { data: batch } = await supabase
-            .from('workers')
-            .select('ktx, gioi_tinh, don_vi')
-            .range(fetchFrom, fetchFrom + FETCH_SIZE - 1);
-          if (!batch || batch.length === 0) { fetchHasMore = false; break; }
-          allWorkersData = allWorkersData.concat(batch as { ktx: string; gioi_tinh: string; don_vi: string }[]);
-          if (batch.length < FETCH_SIZE) { fetchHasMore = false; } else { fetchFrom += FETCH_SIZE; }
+      if (w.donVi) {
+        const key = w.donVi.toUpperCase();
+        if (!donViDisplay.has(key)) donViDisplay.set(key, w.donVi);
+        donViTotals.set(key, (donViTotals.get(key) ?? 0) + 1);
+        if (w.ktx) {
+          let perKtx = donViPerKtx.get(w.ktx);
+          if (!perKtx) donViPerKtx.set(w.ktx, (perKtx = new Map()));
+          perKtx.set(key, (perKtx.get(key) ?? 0) + 1);
         }
-
-        // Count gender totals and per-KTX from paginated data
-        let maleCount = 0;
-        let femaleCount = 0;
-        const donViMap: Record<string, number> = {};
-        const donViDisplayMap: Record<string, string> = {}; // uppercase key → first-seen display name
-        const donViPerKtx: Record<string, Record<string, number>> = {};
-        const genderPerKtx: Record<string, { male: number; female: number }> = {};
-
-        allWorkersData.forEach(row => {
-          const ktxKey = (row.ktx ?? '').trim();
-          const g = (row.gioi_tinh ?? '').trim();
-          // Normalize to ASCII lowercase for reliable comparison across all Vietnamese input variants
-          const gNorm = g
-            .toLowerCase()
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '') // strip diacritics
-            .trim();
-
-          // "Nam", "NAM", "nam" → "nam"; "Nữ", "NỮ", "nu", "nư", "nữ" → "nu"
-          const isMale = gNorm === 'nam';
-          const isFemale = !isMale && (gNorm === 'nu' || gNorm === 'n' || (gNorm.startsWith('n') && gNorm.length <= 3 && gNorm !== 'nam'));
-
-          if (isMale) maleCount++;
-          else if (isFemale) femaleCount++;
-
-          // Gender per KTX
-          if (ktxKey) {
-            if (!genderPerKtx[ktxKey]) genderPerKtx[ktxKey] = { male: 0, female: 0 };
-            if (isMale) genderPerKtx[ktxKey].male++;
-            else if (isFemale) genderPerKtx[ktxKey].female++;
-          }
-
-          // Contractor overall and per KTX — group case-insensitively (merge "ME", "me", "Me")
-          const dvRaw = (row.don_vi ?? '').trim();
-          if (dvRaw) {
-            const dvKey = dvRaw.toUpperCase();
-            if (!donViDisplayMap[dvKey]) donViDisplayMap[dvKey] = dvRaw; // keep first-seen casing for display
-            donViMap[dvKey] = (donViMap[dvKey] || 0) + 1;
-            if (ktxKey) {
-              if (!donViPerKtx[ktxKey]) donViPerKtx[ktxKey] = {};
-              donViPerKtx[ktxKey][dvKey] = (donViPerKtx[ktxKey][dvKey] || 0) + 1;
-            }
-          }
-        });
-
-        // Sort by count descending, take top entries — restore display names
-        const sortedDonVi: [string, number][] = Object.entries(donViMap)
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 6)
-          .map(([key, count]) => [donViDisplayMap[key] ?? key, count]);
-
-        const contractorPerKtx: Record<string, [string, number][]> = {};
-        Object.entries(donViPerKtx).forEach(([ktxKey, map]) => {
-          contractorPerKtx[ktxKey] = Object.entries(map)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 5)
-            .map(([key, count]) => [donViDisplayMap[key] ?? key, count]);
-        });
-
-        if (!active) return;
-
-        setDashboardTotal(total ?? 0);
-        setGenderStats({ male: maleCount, female: femaleCount });
-        setContractorStats(sortedDonVi);
-        setGenderByKtx(genderPerKtx);
-        setContractorByKtx(contractorPerKtx);
-      } catch (err) {
-        console.error('fetchStats error:', err);
-      } finally {
-        if (active) setStatsLoading(false);
       }
+    }
+
+    const topN = (m: Map<string, number>, n: number): [string, number][] =>
+      [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, n).map(([k, c]) => [donViDisplay.get(k) ?? k, c]);
+
+    const contractorPerKtx: Record<string, [string, number][]> = {};
+    donViPerKtx.forEach((m, ktx) => { contractorPerKtx[ktx] = topN(m, 5); });
+
+    return {
+      genderStats: { male, female },
+      genderByKtx: genderPerKtx,
+      contractorStats: topN(donViTotals, 6),
+      contractorByKtx: contractorPerKtx,
     };
-    fetchStats();
-    return () => { active = false; };
-  }, [workersLength]); // Re-fetch stats whenever workers count changes (e.g. after Excel import)
+  }, [scopedWorkers]);
+
+  const dashboardTotal = workers.length;
 
   // ── KPI calculations scoped to selected KTX ───────────────────────────────
   // All-KTX metrics
@@ -659,26 +571,6 @@ export default function OccupancyDashboardPage() {
           </button>
         </div>
 
-        {/* ── KTX Dropdown Filter ── */}
-        {!isEmpty && allKTX.length > 0 && (
-          <div className="flex items-center gap-3 mb-5">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">Chọn KTX:</span>
-            <div className="relative">
-              <select
-                value={selectedKTX}
-                onChange={e => { setSelectedKTX(e.target.value); setSelectedBuilding(null); }}
-                className="appearance-none bg-white border border-border rounded-lg pl-3 pr-8 py-2 text-sm font-semibold text-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary cursor-pointer min-w-[160px]"
-              >
-                <option value="all">Tất cả KTX</option>
-                {allKTX.map(ktx => (
-                  <option key={ktx} value={ktx}>{ktx}</option>
-                ))}
-              </select>
-              <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-            </div>
-          </div>
-        )}
-
         {/* ── KPI Grid — auto-calculated per selected KTX ── */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
           <KPICard
@@ -752,7 +644,7 @@ export default function OccupancyDashboardPage() {
             {Object.keys(genderByKtx).sort().length > 0 && (
               <div className="space-y-2">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Chi tiết theo KTX</p>
-                {Object.keys(genderByKtx).sort().map(ktxKey => (
+                {Object.keys(genderByKtx).sort(compareNatural).map(ktxKey => (
                   <div key={ktxKey} className="rounded-lg border border-border bg-muted/30 px-3 py-2">
                     <p className="text-xs font-semibold text-foreground mb-1.5">{ktxKey}</p>
                     <div className="grid grid-cols-2 gap-2">
@@ -793,7 +685,7 @@ export default function OccupancyDashboardPage() {
             {Object.keys(contractorByKtx).sort().length > 0 && (
               <div className="space-y-2">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Chi tiết theo KTX</p>
-                {Object.keys(contractorByKtx).sort().map(ktxKey => (
+                {Object.keys(contractorByKtx).sort(compareNatural).map(ktxKey => (
                   <div key={ktxKey} className="rounded-lg border border-border bg-muted/30 px-3 py-2">
                     <p className="text-xs font-semibold text-foreground mb-1.5">{ktxKey}</p>
                     <div className="grid grid-cols-2 gap-1.5">
@@ -927,7 +819,13 @@ export default function OccupancyDashboardPage() {
                   <div key={ktx} className="mb-6 last:mb-0">
                     {selectedKTX === 'all' && (
                       <div className="flex items-center gap-2 mb-3">
-                        <span className={`text-sm font-bold px-3 py-1 rounded-full ${ktx === 'KTX 1' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>{ktx}</span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedKTX(ktx)}
+                          className="text-sm font-bold px-3 py-1 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                        >
+                          {ktx}
+                        </button>
                         <span className="text-xs text-muted-foreground">{ktxWorkers.length} công nhân · {ktxBuildings.length} dãy</span>
                       </div>
                     )}
@@ -1006,6 +904,7 @@ export default function OccupancyDashboardPage() {
         <RoomDrawer
           ktx={drawerRoom.ktx}
           building={drawerRoom.building}
+          buildingRaw={drawerRoom.building}
           room={drawerRoom.room}
           workers={drawerWorkers}
           onClose={() => setDrawerRoom(null)}

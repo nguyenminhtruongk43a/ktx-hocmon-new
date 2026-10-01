@@ -14,6 +14,8 @@ import { useAuth } from '@/context/AuthContext';
 import { useAudit } from '@/context/AuditContext';
 import { useWorkers } from '@/context/WorkerContext';
 import { useSearchParams } from 'next/navigation';
+import { useKtxScope, ALL_KTX } from '@/context/KtxScopeContext';
+import { normalizeKtx, normalizeDay, normalizeRoom } from '@/lib/normalize';
 
 export interface FilterState {
   search: string;
@@ -151,13 +153,34 @@ function normalizePhong(raw: string): string {
   return trimmed;
 }
 
-/** Normalize KTX value from Excel to standard "KTX 1" or "KTX 2" */
-function normalizeKtxValue(raw: string): string {
-  if (!raw) return '';
-  const s = raw.trim().toUpperCase().replace(/\s+/g, ' ');
-  if (s.includes('1') || s === 'KTX1') return 'KTX 1';
-  if (s.includes('2') || s === 'KTX2') return 'KTX 2';
-  return raw.trim();
+const normalizeKtxValue = normalizeKtx;
+
+function KtxPicker({ name, value, onChange }: { name: string; value: string; onChange: (ktx: string) => void }) {
+  const { ktxList } = useKtxScope();
+  const [custom, setCustom] = useState('');
+  const options = ktxList.map(k => k.ktx);
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {options.map(ktx => (
+        <label key={ktx} className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 cursor-pointer transition-all font-semibold text-sm ${value === ktx ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-card text-foreground hover:border-primary/50'}`}>
+          <input type="radio" name={name} value={ktx} checked={value === ktx} onChange={() => onChange(ktx)} className="sr-only" />
+          {ktx}
+        </label>
+      ))}
+      <input
+        type="text"
+        value={custom}
+        onChange={e => {
+          setCustom(e.target.value);
+          const normalized = normalizeKtx(e.target.value);
+          if (normalized) onChange(normalized);
+        }}
+        placeholder="KTX mới, vd: KTX 6"
+        aria-label="Nhập tên KTX mới"
+        className="input-field w-44 text-sm"
+      />
+    </div>
+  );
 }
 
 /** Parsed row from real Excel file */
@@ -192,7 +215,7 @@ function ExcelImportModal({ onClose, onImport }: { onClose: () => void; onImport
   const [previewPage, setPreviewPage] = useState(1);
   const [parseError, setParseError] = useState('');
   const [importing, setImporting] = useState(false);
-  const [selectedKtx, setSelectedKtx] = useState<'KTX 1' | 'KTX 2' | ''>('');
+  const [selectedKtx, setSelectedKtx] = useState<string>('');
   const [hasKtxColumn, setHasKtxColumn] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -343,7 +366,7 @@ function ExcelImportModal({ onClose, onImport }: { onClose: () => void; onImport
 
   const getEffectiveKtx = (row: ParsedWorkerRow): string => {
     if (hasKtxColumn && row.ktxFromExcel) return row.ktxFromExcel;
-    return selectedKtx || 'KTX 2';
+    return selectedKtx;
   };
 
   const canConfirm = parsedRows.length > 0 && (hasKtxColumn || selectedKtx !== '');
@@ -409,14 +432,7 @@ function ExcelImportModal({ onClose, onImport }: { onClose: () => void; onImport
               <Building2 size={16} className="text-primary" />
               <p className="text-sm font-bold text-foreground">Chọn KTX để nhập dữ liệu <span className="text-red-500">*</span></p>
             </div>
-            <div className="flex gap-3">
-              {(['KTX 1', 'KTX 2'] as const).map(ktx => (
-                <label key={ktx} className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 cursor-pointer transition-all font-semibold text-sm ${selectedKtx === ktx ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-card text-foreground hover:border-primary/50'}`}>
-                  <input type="radio" name="ktx-select" value={ktx} checked={selectedKtx === ktx} onChange={() => setSelectedKtx(ktx)} className="hidden" />
-                  {ktx}
-                </label>
-              ))}
-            </div>
+            <KtxPicker name="ktx-select" value={selectedKtx} onChange={setSelectedKtx} />
             {hasKtxColumn && (
               <div className="mt-2 flex items-center gap-1.5 text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-1.5">
                 <FileCheck size={12} />
@@ -492,7 +508,7 @@ function ExcelImportModal({ onClose, onImport }: { onClose: () => void; onImport
                         <tr key={i} className="border-t border-border hover:bg-muted/20">
                           <td className="px-2 py-1.5 text-muted-foreground">{(previewPage - 1) * PREVIEW_PAGE_SIZE + i + 1}</td>
                           <td className="px-2 py-1.5 whitespace-nowrap">
-                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold ${effectiveKtx === 'KTX 1' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold ${effectiveKtx ? 'bg-primary/10 text-primary' : 'bg-red-100 text-red-700'}`}>
                               {effectiveKtx || '—'}
                             </span>
                           </td>
@@ -563,7 +579,7 @@ function BulkAssignKtxModal({
 }) {
   const noKtxWorkers = useMemo(() => workers.filter(w => !w.ktx || w.ktx.trim() === ''), [workers]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set(noKtxWorkers.map(w => w.id)));
-  const [targetKtx, setTargetKtx] = useState<'KTX 1' | 'KTX 2'>('KTX 1');
+  const [targetKtx, setTargetKtx] = useState<string>('');
   const [assigning, setAssigning] = useState(false);
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 50;
@@ -591,6 +607,10 @@ function BulkAssignKtxModal({
   const handleAssign = async () => {
     if (selectedIds.size === 0) {
       toast.error('Chưa chọn công nhân nào.');
+      return;
+    }
+    if (!targetKtx) {
+      toast.error('Vui lòng chọn KTX đích.');
       return;
     }
     setAssigning(true);
@@ -622,14 +642,7 @@ function BulkAssignKtxModal({
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
           <div className="p-4 rounded-xl border-2 border-primary/30 bg-primary/5">
             <p className="text-sm font-bold text-foreground mb-3">Gán về KTX:</p>
-            <div className="flex gap-3">
-              {(['KTX 1', 'KTX 2'] as const).map(ktx => (
-                <label key={ktx} className={`flex items-center gap-2 px-5 py-2.5 rounded-lg border-2 cursor-pointer transition-all font-bold text-sm ${targetKtx === ktx ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-card text-foreground hover:border-primary/50'}`}>
-                  <input type="radio" name="bulk-ktx" value={ktx} checked={targetKtx === ktx} onChange={() => setTargetKtx(ktx)} className="hidden" />
-                  {ktx}
-                </label>
-              ))}
-            </div>
+            <KtxPicker name="bulk-ktx" value={targetKtx} onChange={setTargetKtx} />
           </div>
 
           {noKtxWorkers.length === 0 ? (
@@ -1029,34 +1042,59 @@ export default function WorkerManagementClient() {
     }
   }, [addLog, currentUser]);
 
-  // Handle URL filter param from dashboard
+  const { scope, setScope } = useKtxScope();
+
+  // Handle URL filter params from dashboard / audit page
   useEffect(() => {
     const filterParam = searchParams?.get('filter');
-    const ktxParam = searchParams?.get('ktx');
+    const ktxParam = normalizeKtx(searchParams?.get('ktx') ?? '');
+    const editId = searchParams?.get('edit');
     if (filterParam === 'missing_room' || filterParam === 'no_room') {
-      setFilters(prev => ({
-        ...prev,
-        profileStatus: 'no_room',
-        ...(ktxParam ? { ktx: ktxParam } : {}),
-      }));
+      setFilters(prev => ({ ...prev, profileStatus: 'no_room', ...(ktxParam ? { ktx: ktxParam } : {}) }));
     } else if (ktxParam) {
       setFilters(prev => ({ ...prev, ktx: ktxParam }));
     }
-  }, [searchParams]);
+    if (ktxParam) setScope(ktxParam);
+    if (editId) {
+      const target = workers.find(w => w.id === editId);
+      if (target) setEditingWorker(target);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, workers.length > 0]);
+
+  // Global header switcher -> local KTX filter (one direction only; the local
+  // filter change below pushes back to the scope so both stay identical).
+  useEffect(() => {
+    setFilters(prev => {
+      const next = scope === ALL_KTX ? '' : scope;
+      if (prev.ktx === next) return prev;
+      return { ...prev, ktx: next, building: '', room: '' };
+    });
+    setPage(1);
+  }, [scope]);
+
+  const handleFiltersChange = useCallback((next: FilterState) => {
+    setFilters(next);
+    const nextScope = next.ktx ? normalizeKtx(next.ktx) : ALL_KTX;
+    if (nextScope !== scope) setScope(nextScope);
+  }, [scope, setScope]);
 
   const noKtxCount = useMemo(() => workers.filter(w => !w.ktx || w.ktx.trim() === '').length, [workers]);
 
   const filtered = useMemo(() => {
-    let list = [...workers];
-    const s = filters.search.toLowerCase();
+    let list = workers;
+    const s = filters.search.trim().toLowerCase();
     if (s) list = list.filter(w =>
-      w.hoVaTen.toLowerCase().includes(s) || w.maNV.toLowerCase().includes(s) ||
-      w.cccd.toLowerCase().includes(s) || w.soDienThoai.includes(s) ||
+      (w.hoVaTen || '').toLowerCase().includes(s) || (w.maNV || '').toLowerCase().includes(s) ||
+      (w.cccd || '').toLowerCase().includes(s) || (w.soDienThoai || '').includes(s) ||
       (w.toTruong || '').toLowerCase().includes(s)
     );
-    if (filters.ktx) list = list.filter(w => w.ktx === filters.ktx);
-    if (filters.building) list = list.filter(w => w.day === filters.building);
-    if (filters.room) list = list.filter(w => w.phongSo === filters.room);
+    const ktxFilter = normalizeKtx(filters.ktx);
+    const buildingFilter = normalizeDay(filters.building);
+    const roomFilter = normalizeRoom(filters.room);
+    if (ktxFilter) list = list.filter(w => w.ktx === ktxFilter);
+    if (buildingFilter) list = list.filter(w => w.day === buildingFilter);
+    if (roomFilter) list = list.filter(w => w.phongSo === roomFilter);
     if (filters.platoon === '__none__') list = list.filter(w => !w.tieuDoan);
     else if (filters.platoon) list = list.filter(w => w.tieuDoan === filters.platoon);
     if (filters.profileStatus) list = list.filter(w => getProfileStatus(w) === filters.profileStatus);
@@ -1335,7 +1373,7 @@ export default function WorkerManagementClient() {
         </div>
       </div>
 
-      <WorkerFilters filters={filters} onChange={f => { setFilters(f); setPage(1); }} workers={workers} />
+      <WorkerFilters filters={filters} onChange={f => { handleFiltersChange(f); setPage(1); }} workers={workers} />
 
       <BulkActionBar
         selectedCount={selectedIds.size}

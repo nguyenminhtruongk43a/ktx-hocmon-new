@@ -1,39 +1,65 @@
 'use client';
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { Worker, WORKERS } from '@/data/workers';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { Worker, WORKERS, compareNatural } from '@/data/workers';
 import { createClient } from '@/lib/supabase/client';
+import { normalizeKtx, normalizeDay, normalizeRoom, normalizeText, normalizeCccd } from '@/lib/normalize';
 
 // ─── DB row ↔ Worker mapping ───────────────────────────────────────────────
 
-function dbRowToWorker(row: Record<string, unknown>): Worker {
-  return {
+type DbRow = Record<string, unknown>;
+
+/** Maps a DB row to a Worker with canonical KTX/Dãy/Phòng and reports whether the stored row differed. */
+function dbRowToWorker(row: DbRow): { worker: Worker; dirty: boolean } {
+  const rawKtx = String(row.ktx ?? '');
+  const rawDay = String(row.day ?? '');
+  const rawRoom = String(row.phong_so ?? '');
+  const ktx = normalizeKtx(rawKtx);
+  const day = normalizeDay(rawDay);
+  const phongSo = normalizeRoom(rawRoom);
+  const worker: Worker = {
     id: String(row.id ?? ''),
     stt: Number(row.stt ?? 0),
-    hoVaTen: String(row.ho_va_ten ?? ''),
-    maNV: String(row.ma_nv ?? ''),
-    tieuDoan: String(row.tieu_doan ?? ''),
-    ktx: String(row.ktx ?? ''),
-    donVi: String(row.don_vi ?? ''),
-    gioiTinh: String(row.gioi_tinh ?? ''),
+    hoVaTen: normalizeText(row.ho_va_ten),
+    maNV: normalizeText(row.ma_nv),
+    tieuDoan: normalizeText(row.tieu_doan),
+    ktx,
+    donVi: normalizeText(row.don_vi),
+    gioiTinh: normalizeText(row.gioi_tinh),
     ngaySinh: String(row.ngay_sinh ?? row.date_of_birth ?? row.dob ?? ''),
-    soDienThoai: String(row.so_dien_thoai ?? ''),
-    day: String(row.day ?? ''),
-    phongSo: String(row.phong_so ?? ''),
-    giuong: String(row.giuong ?? ''),
-    cccd: String(row.cccd ?? ''),
-    hoKhauTinh: String(row.ho_khau_tinh ?? ''),
-    toTruong: String(row.to_truong ?? ''),
-    sdtToTruong: String(row.sdt_to_truong ?? ''),
+    soDienThoai: normalizeText(row.so_dien_thoai),
+    day,
+    phongSo,
+    giuong: normalizeText(row.giuong),
+    cccd: normalizeCccd(row.cccd),
+    hoKhauTinh: normalizeText(row.ho_khau_tinh),
+    toTruong: normalizeText(row.to_truong),
+    sdtToTruong: normalizeText(row.sdt_to_truong),
     ngayVaoKTX: String(row.ngay_vao_ktx ?? ''),
     ngayRaKTX: row.ngay_ra_ktx ? String(row.ngay_ra_ktx) : undefined,
     ghiChu: String(row.ghi_chu ?? ''),
     khoaTraCuu: String(row.khoa_tra_cuu ?? ''),
     avatar: row.avatar ? String(row.avatar) : undefined,
-    tamTruStatus: (row.tam_tru_status as 'registered' | 'unregistered') ?? 'unregistered',
+    tamTruStatus: row.tam_tru_status === 'registered' ? 'registered' : 'unregistered',
+  };
+  const dirty = rawKtx !== ktx || rawDay !== day || rawRoom !== phongSo;
+  return { worker, dirty };
+}
+
+function normalizeWorker(w: Worker): Worker {
+  return {
+    ...w,
+    hoVaTen: normalizeText(w.hoVaTen),
+    maNV: normalizeText(w.maNV),
+    ktx: normalizeKtx(w.ktx),
+    day: normalizeDay(w.day),
+    phongSo: normalizeRoom(w.phongSo),
+    cccd: normalizeCccd(w.cccd),
+    soDienThoai: normalizeText(w.soDienThoai),
   };
 }
 
-function workerToDbRow(w: Worker): Record<string, unknown> {
+function workerToDbRow(input: Worker): DbRow {
+  const w = normalizeWorker(input);
   return {
     id: w.id,
     stt: w.stt,
@@ -61,16 +87,18 @@ function workerToDbRow(w: Worker): Record<string, unknown> {
   };
 }
 
+const bySttThenName = (a: Worker, b: Worker) => a.stt - b.stt || compareNatural(a.hoVaTen, b.hoVaTen);
+
 // ─── Context types ─────────────────────────────────────────────────────────
 
 interface WorkerContextValue {
   workers: Worker[];
   workerCount: number;
-  /** Exact total count from DB (accurate even for 6000+ records) */
   totalWorkerCount: number;
   loading: boolean;
   refreshing: boolean;
-  // CRUD operations (async, write to Supabase)
+  /** IDs whose stored KTX/Dãy/Phòng text is not in canonical form yet */
+  unnormalizedIds: ReadonlySet<string>;
   addWorker: (worker: Worker) => Promise<void>;
   updateWorker: (worker: Worker) => Promise<void>;
   deleteWorker: (id: string) => Promise<void>;
@@ -79,321 +107,303 @@ interface WorkerContextValue {
   importWorkers: (rows: Worker[]) => Promise<void>;
   updateTamTruStatus: (id: string, status: 'registered' | 'unregistered') => Promise<void>;
   bulkUpdateKtx: (ids: string[], ktxValue: string) => Promise<void>;
+  /** Rewrites non-canonical KTX/Dãy/Phòng values in Supabase. Returns number of rows fixed. */
+  normalizeStoredLocations: () => Promise<number>;
   refreshWorkers: () => Promise<void>;
-  // Legacy setter for compatibility
   setWorkers: React.Dispatch<React.SetStateAction<Worker[]>>;
 }
 
 const WorkerContext = createContext<WorkerContextValue | null>(null);
 
-/** Page size for range-based fetching to bypass Supabase 1000-row default limit */
 const FETCH_PAGE_SIZE = 1000;
+const WRITE_BATCH = 200;
+const REALTIME_FLUSH_MS = 120;
+
+type PendingChange = { type: 'upsert'; worker: Worker; dirty: boolean } | { type: 'delete' };
 
 export function WorkerProvider({ children }: { children: React.ReactNode }) {
   const [workers, setWorkers] = useState<Worker[]>([]);
-  const [totalWorkerCount, setTotalWorkerCount] = useState(0);
+  const [unnormalizedIds, setUnnormalizedIds] = useState<ReadonlySet<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const supabase = createClient();
-  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const supabase = useMemo(() => createClient(), []);
 
-  // ── Fetch exact count from DB (lightweight, no data transfer) ─────────────
-  const fetchCount = useCallback(async () => {
-    try {
-      const { count, error } = await supabase
-        .from('workers')
-        .select('*', { count: 'exact', head: true });
-      if (!error && count !== null) {
-        setTotalWorkerCount(count);
-      }
-    } catch (err) {
-      console.error('fetchCount error:', err);
-    }
-  }, []);
+  const workersRef = useRef<Worker[]>(workers);
+  workersRef.current = workers;
+  const hasLoadedRef = useRef(false);
 
   // ── Fetch ALL workers using range pagination (bypasses 1000-row limit) ────
   const fetchWorkers = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     try {
       const allRows: Worker[] = [];
+      const dirtyIds = new Set<string>();
       let from = 0;
-      let hasMore = true;
+      let failed = false;
 
-      while (hasMore) {
-        const to = from + FETCH_PAGE_SIZE - 1;
+      while (true) {
         const { data, error } = await supabase
           .from('workers')
           .select('*')
           .order('stt', { ascending: true })
-          .range(from, to);
+          .range(from, from + FETCH_PAGE_SIZE - 1);
 
         if (error) {
           console.error('Supabase load error:', error.message);
-          if (
-            error.message?.includes('does not exist') ||
-            error.message?.includes('schema cache') ||
-            error.code === '42P01' ||
-            error.code === 'PGRST116'
-          ) {
-            if (!isRefresh && allRows.length === 0) setWorkers(WORKERS);
-          }
+          failed = true;
+          const missingTable = error.message?.includes('does not exist') || error.message?.includes('schema cache') || error.code === '42P01';
+          if (missingTable && !hasLoadedRef.current) setWorkers(WORKERS);
           break;
         }
 
-        const batch = (data ?? []).map(dbRowToWorker);
-        allRows.push(...batch);
-
-        // If we got fewer rows than the page size, we've reached the end
-        if (batch.length < FETCH_PAGE_SIZE) {
-          hasMore = false;
-        } else {
-          from += FETCH_PAGE_SIZE;
+        for (const row of data ?? []) {
+          const { worker, dirty } = dbRowToWorker(row as DbRow);
+          allRows.push(worker);
+          if (dirty) dirtyIds.add(worker.id);
         }
+        if (!data || data.length < FETCH_PAGE_SIZE) break;
+        from += FETCH_PAGE_SIZE;
       }
 
-      if (allRows.length > 0 || !loading) {
+      if (!failed) {
         setWorkers(allRows);
-        setTotalWorkerCount(allRows.length);
+        setUnnormalizedIds(dirtyIds);
+        hasLoadedRef.current = true;
       }
     } catch (err) {
       console.error('Load workers failed:', err);
     } finally {
       if (isRefresh) setRefreshing(false);
-      else setLoading(false);
+      setLoading(false);
     }
-  }, [loading]);
+  }, [supabase]);
 
-  // ── Initial load ──────────────────────────────────────────────────────────
   useEffect(() => {
     fetchWorkers(false);
   }, [fetchWorkers]);
 
-  // ── Real-time subscription (workers + profiles) ───────────────────────────
+  // ── Realtime: buffer events and apply them in one state update ───────────
+  // Bulk imports emit thousands of events; applying each with a full sort froze the UI.
   useEffect(() => {
-    // Workers realtime channel
-    const workersChannel = supabase
-      .channel('workers_realtime_v2')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'workers' },
-        (payload) => {
-          if (payload.eventType === 'INSERT') {
-            const newWorker = dbRowToWorker(payload.new as Record<string, unknown>);
-            setWorkers(prev => {
-              if (prev.some(w => w.id === newWorker.id)) return prev;
-              const next = [...prev, newWorker].sort((a, b) => a.stt - b.stt);
-              setTotalWorkerCount(next.length);
-              return next;
-            });
-          } else if (payload.eventType === 'UPDATE') {
-            const updated = dbRowToWorker(payload.new as Record<string, unknown>);
-            setWorkers(prev => prev.map(w => w.id === updated.id ? updated : w));
-          } else if (payload.eventType === 'DELETE') {
-            const deletedId = (payload.old as Record<string, unknown>).id as string;
-            setWorkers(prev => {
-              const next = prev.filter(w => w.id !== deletedId);
-              setTotalWorkerCount(next.length);
-              return next;
-            });
+    const pending = new Map<string, PendingChange>();
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const flush = () => {
+      timer = null;
+      if (pending.size === 0) return;
+      const changes = new Map(pending);
+      pending.clear();
+
+      setWorkers(prev => {
+        const next: Worker[] = [];
+        const seen = new Set<string>();
+        let needsSort = false;
+        for (const w of prev) {
+          const change = changes.get(w.id);
+          seen.add(w.id);
+          if (!change) next.push(w);
+          else if (change.type === 'upsert') {
+            if (change.worker.stt !== w.stt) needsSort = true;
+            next.push(change.worker);
           }
         }
-      )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log('[Realtime] workers channel subscribed');
+        for (const [id, change] of changes) {
+          if (!seen.has(id) && change.type === 'upsert') {
+            next.push(change.worker);
+            needsSort = true;
+          }
         }
+        if (needsSort) next.sort(bySttThenName);
+        return next;
       });
 
-    // Profiles realtime channel — triggers a full re-fetch when profiles change
-    const profilesChannel = supabase
-      .channel('profiles_realtime_v2')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'profiles' },
-        () => {
-          fetchWorkers(false);
+      setUnnormalizedIds(prev => {
+        const next = new Set(prev);
+        for (const [id, change] of changes) {
+          if (change.type === 'upsert' && change.dirty) next.add(id);
+          else next.delete(id);
         }
-      )
+        return next;
+      });
+    };
+
+    const schedule = () => {
+      if (!timer) timer = setTimeout(flush, REALTIME_FLUSH_MS);
+    };
+
+    const workersChannel = supabase
+      .channel('workers_realtime_v3')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'workers' }, payload => {
+        if (payload.eventType === 'DELETE') {
+          const id = String((payload.old as DbRow).id ?? '');
+          if (id) pending.set(id, { type: 'delete' });
+        } else {
+          const { worker, dirty } = dbRowToWorker(payload.new as DbRow);
+          pending.set(worker.id, { type: 'upsert', worker, dirty });
+        }
+        schedule();
+      })
       .subscribe();
 
-    channelRef.current = workersChannel;
-
     return () => {
+      if (timer) clearTimeout(timer);
       supabase.removeChannel(workersChannel);
-      supabase.removeChannel(profilesChannel);
     };
-  }, [fetchWorkers]);
+  }, [supabase]);
 
-  // ── Manual refresh ────────────────────────────────────────────────────────
   const refreshWorkers = useCallback(async () => {
     await fetchWorkers(true);
-    await fetchCount();
-  }, [fetchWorkers, fetchCount]);
-
-  // ── CRUD operations ───────────────────────────────────────────────────────
-
-  const addWorker = useCallback(async (worker: Worker) => {
-    const { error } = await supabase
-      .from('workers')
-      .insert(workerToDbRow(worker));
-    if (error) throw new Error(error.message);
-    // Optimistic update: add to local state immediately (don't wait for realtime)
-    setWorkers(prev => {
-      if (prev.some(w => w.id === worker.id)) return prev;
-      const next = [...prev, worker].sort((a, b) => a.stt - b.stt);
-      setTotalWorkerCount(next.length);
-      return next;
-    });
-    // Fallback re-fetch after short delay to ensure consistency
-    setTimeout(() => fetchWorkers(false), 1500);
   }, [fetchWorkers]);
 
-  const updateWorker = useCallback(async (worker: Worker) => {
-    const { error } = await supabase
-      .from('workers')
-      .update(workerToDbRow(worker))
-      .eq('id', worker.id);
-    if (error) throw new Error(error.message);
-    // Optimistic update
-    setWorkers(prev => prev.map(w => w.id === worker.id ? worker : w));
+  // ── CRUD operations (optimistic, realtime reconciles) ─────────────────────
+
+  const upsertLocal = useCallback((list: Worker[]) => {
+    const byId = new Map(list.map(w => [w.id, w]));
+    setWorkers(prev => {
+      const next = prev.map(w => byId.get(w.id) ?? w);
+      const existing = new Set(prev.map(w => w.id));
+      for (const w of list) if (!existing.has(w.id)) next.push(w);
+      return next.sort(bySttThenName);
+    });
   }, []);
 
-  const deleteWorker = useCallback(async (id: string) => {
-    // Log deletion to worker_deletion_log BEFORE hard delete
-    // This persists the record even after the worker row is removed
-    const workerToDelete = workers.find(w => w.id === id);
-    if (workerToDelete) {
-      await supabase
-        .from('worker_deletion_log')
-        .insert({
-          worker_id: id,
-          ho_va_ten: workerToDelete.hoVaTen || null,
-          ma_nv: workerToDelete.maNV || null,
-          ktx: workerToDelete.ktx || null,
-          day: workerToDelete.day || null,
-          deleted_at: new Date().toISOString(),
-        });
-    }
-    const { error } = await supabase
-      .from('workers')
-      .delete()
-      .eq('id', id);
+  const removeLocal = useCallback((ids: string[]) => {
+    const idSet = new Set(ids);
+    setWorkers(prev => prev.filter(w => !idSet.has(w.id)));
+    setUnnormalizedIds(prev => {
+      const next = new Set(prev);
+      ids.forEach(id => next.delete(id));
+      return next;
+    });
+  }, []);
+
+  const addWorker = useCallback(async (worker: Worker) => {
+    const normalized = normalizeWorker(worker);
+    const { error } = await supabase.from('workers').insert(workerToDbRow(normalized));
     if (error) throw new Error(error.message);
-  }, [workers]);
+    upsertLocal([normalized]);
+  }, [supabase, upsertLocal]);
+
+  const updateWorker = useCallback(async (worker: Worker) => {
+    const normalized = normalizeWorker(worker);
+    const { error } = await supabase.from('workers').update(workerToDbRow(normalized)).eq('id', worker.id);
+    if (error) throw new Error(error.message);
+    upsertLocal([normalized]);
+    setUnnormalizedIds(prev => {
+      if (!prev.has(worker.id)) return prev;
+      const next = new Set(prev);
+      next.delete(worker.id);
+      return next;
+    });
+  }, [supabase, upsertLocal]);
+
+  const logDeletions = useCallback(async (targets: Worker[]) => {
+    const now = new Date().toISOString();
+    for (let i = 0; i < targets.length; i += WRITE_BATCH) {
+      const batch = targets.slice(i, i + WRITE_BATCH).map(w => ({
+        worker_id: w.id,
+        ho_va_ten: w.hoVaTen || null,
+        ma_nv: w.maNV || null,
+        ktx: w.ktx || null,
+        day: w.day || null,
+        deleted_at: now,
+      }));
+      await supabase.from('worker_deletion_log').insert(batch);
+    }
+  }, [supabase]);
 
   const deleteWorkers = useCallback(async (ids: string[]) => {
     if (ids.length === 0) return;
-    // Log all deletions to worker_deletion_log BEFORE hard delete
-    const now = new Date().toISOString();
-    const logRows = ids.map(id => {
-      const w = workers.find(wk => wk.id === id);
-      return {
-        worker_id: id,
-        ho_va_ten: w?.hoVaTen || null,
-        ma_nv: w?.maNV || null,
-        ktx: w?.ktx || null,
-        day: w?.day || null,
-        deleted_at: now,
-      };
-    });
-    if (logRows.length > 0) {
-      await supabase.from('worker_deletion_log').insert(logRows);
+    const idSet = new Set(ids);
+    await logDeletions(workersRef.current.filter(w => idSet.has(w.id)));
+    for (let i = 0; i < ids.length; i += WRITE_BATCH) {
+      const { error } = await supabase.from('workers').delete().in('id', ids.slice(i, i + WRITE_BATCH));
+      if (error) throw new Error(error.message);
     }
-    const { error } = await supabase
-      .from('workers')
-      .delete()
-      .in('id', ids);
-    if (error) throw new Error(error.message);
-  }, [workers]);
+    removeLocal(ids);
+  }, [supabase, logDeletions, removeLocal]);
+
+  const deleteWorker = useCallback((id: string) => deleteWorkers([id]), [deleteWorkers]);
 
   const deleteAllWorkers = useCallback(async () => {
-    // Log all current workers to worker_deletion_log BEFORE hard delete
-    const now = new Date().toISOString();
-    if (workers.length > 0) {
-      const BATCH = 200;
-      for (let i = 0; i < workers.length; i += BATCH) {
-        const batch = workers.slice(i, i + BATCH).map(w => ({
-          worker_id: w.id,
-          ho_va_ten: w.hoVaTen || null,
-          ma_nv: w.maNV || null,
-          ktx: w.ktx || null,
-          day: w.day || null,
-          deleted_at: now,
-        }));
-        await supabase.from('worker_deletion_log').insert(batch);
-      }
-    }
-    const { error } = await supabase
-      .from('workers')
-      .delete()
-      .neq('id', '___never___');
+    await logDeletions(workersRef.current);
+    const { error } = await supabase.from('workers').delete().neq('id', '___never___');
     if (error) throw new Error(error.message);
     setWorkers([]);
-    setTotalWorkerCount(0);
-  }, [workers]);
+    setUnnormalizedIds(new Set());
+  }, [supabase, logDeletions]);
 
   const importWorkers = useCallback(async (rows: Worker[]) => {
     if (rows.length === 0) return;
-    const maxStt = workers.length > 0 ? Math.max(...workers.map(w => w.stt)) : 0;
-    const rowsWithStt = rows.map((r, i) => ({ ...r, stt: maxStt + i + 1 }));
-    const dbRows = rowsWithStt.map(workerToDbRow);
-
-    const BATCH = 100;
-    for (let i = 0; i < dbRows.length; i += BATCH) {
-      const batch = dbRows.slice(i, i + BATCH);
-      const { error } = await supabase
-        .from('workers')
-        .upsert(batch, { onConflict: 'id' });
+    const current = workersRef.current;
+    const maxStt = current.reduce((max, w) => Math.max(max, w.stt), 0);
+    const dbRows = rows.map((r, i) => workerToDbRow({ ...r, stt: maxStt + i + 1 }));
+    for (let i = 0; i < dbRows.length; i += 100) {
+      const { error } = await supabase.from('workers').upsert(dbRows.slice(i, i + 100), { onConflict: 'id' });
       if (error) throw new Error(error.message);
     }
-    // After import, re-fetch to get accurate state from DB (refresh mode)
     await fetchWorkers(true);
-  }, [workers, fetchWorkers]);
+  }, [supabase, fetchWorkers]);
 
   const updateTamTruStatus = useCallback(async (id: string, status: 'registered' | 'unregistered') => {
-    const { error } = await supabase
-      .from('workers')
-      .update({ tam_tru_status: status })
-      .eq('id', id);
+    const { error } = await supabase.from('workers').update({ tam_tru_status: status }).eq('id', id);
     if (error) throw new Error(error.message);
-  }, []);
+    setWorkers(prev => prev.map(w => (w.id === id ? { ...w, tamTruStatus: status } : w)));
+  }, [supabase]);
 
   const bulkUpdateKtx = useCallback(async (ids: string[], ktxValue: string) => {
     if (ids.length === 0) return;
-    const BATCH = 200;
-    for (let i = 0; i < ids.length; i += BATCH) {
-      const batchIds = ids.slice(i, i + BATCH);
-      const { error } = await supabase
-        .from('workers')
-        .update({ ktx: ktxValue })
-        .in('id', batchIds);
+    const ktx = normalizeKtx(ktxValue);
+    for (let i = 0; i < ids.length; i += WRITE_BATCH) {
+      const { error } = await supabase.from('workers').update({ ktx }).in('id', ids.slice(i, i + WRITE_BATCH));
       if (error) throw new Error(error.message);
     }
-    // Optimistic update in local state
-    setWorkers(prev => prev.map(w => ids.includes(w.id) ? { ...w, ktx: ktxValue } : w));
-  }, []);
+    const idSet = new Set(ids);
+    setWorkers(prev => prev.map(w => (idSet.has(w.id) ? { ...w, ktx } : w)));
+  }, [supabase]);
 
-  return (
-    <WorkerContext.Provider value={{
-      workers,
-      workerCount: workers.length,
-      totalWorkerCount,
-      loading,
-      refreshing,
-      addWorker,
-      updateWorker,
-      deleteWorker,
-      deleteWorkers,
-      deleteAllWorkers,
-      importWorkers,
-      updateTamTruStatus,
-      bulkUpdateKtx,
-      refreshWorkers,
-      setWorkers,
-    }}>
-      {children}
-    </WorkerContext.Provider>
-  );
+  const normalizeStoredLocations = useCallback(async () => {
+    const targets = workersRef.current.filter(w => unnormalizedIds.has(w.id));
+    if (targets.length === 0) return 0;
+    // Group by canonical location so each distinct combo is one UPDATE ... WHERE id IN (...)
+    const groups = new Map<string, { ktx: string; day: string; phong_so: string; ids: string[] }>();
+    for (const w of targets) {
+      const key = `${w.ktx}||${w.day}||${w.phongSo}`;
+      const g = groups.get(key) ?? { ktx: w.ktx, day: w.day, phong_so: w.phongSo, ids: [] };
+      g.ids.push(w.id);
+      groups.set(key, g);
+    }
+    for (const { ids, ...values } of groups.values()) {
+      for (let i = 0; i < ids.length; i += WRITE_BATCH) {
+        const { error } = await supabase.from('workers').update(values).in('id', ids.slice(i, i + WRITE_BATCH));
+        if (error) throw new Error(error.message);
+      }
+    }
+    setUnnormalizedIds(new Set());
+    return targets.length;
+  }, [supabase, unnormalizedIds]);
+
+  const value = useMemo<WorkerContextValue>(() => ({
+    workers,
+    workerCount: workers.length,
+    totalWorkerCount: workers.length,
+    loading,
+    refreshing,
+    unnormalizedIds,
+    addWorker,
+    updateWorker,
+    deleteWorker,
+    deleteWorkers,
+    deleteAllWorkers,
+    importWorkers,
+    updateTamTruStatus,
+    bulkUpdateKtx,
+    normalizeStoredLocations,
+    refreshWorkers,
+    setWorkers,
+  }), [workers, loading, refreshing, unnormalizedIds, addWorker, updateWorker, deleteWorker, deleteWorkers, deleteAllWorkers, importWorkers, updateTamTruStatus, bulkUpdateKtx, normalizeStoredLocations, refreshWorkers]);
+
+  return <WorkerContext.Provider value={value}>{children}</WorkerContext.Provider>;
 }
 
 export function useWorkers() {
