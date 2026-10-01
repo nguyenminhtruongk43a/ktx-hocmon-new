@@ -1,6 +1,6 @@
 import React, { Suspense } from 'react';
 import AppLayout from '@/components/AppLayout';
-import WorkerManagementClient from './components/WorkerManagementClient';
+import { WorkerManagementClient } from './components/WorkerManagementClient';
 
 export default function WorkerManagementPage() {
   return (

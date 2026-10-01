@@ -1,7 +1,7 @@
 'use client';
 import React from 'react';
 import { Search, X } from 'lucide-react';
-import { FilterState } from './WorkerManagementClient';
+import type { FilterState } from './WorkerManagementClient';
 import { Worker, getUniqueKTX, getUniqueBuildings, getUniqueRooms, getUniquePlatoons } from '@/data/workers';
 
 interface Props {

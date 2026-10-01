@@ -995,7 +995,7 @@ function BulkDeleteByFilterModal({
   );
 }
 
-export default function WorkerManagementClient() {
+export function WorkerManagementClient() {
   const { workers, loading, addWorker, updateWorker, deleteWorkers, deleteAllWorkers, importWorkers, updateTamTruStatus, bulkUpdateKtx, refreshWorkers } = useWorkers();
   const searchParams = useSearchParams();
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
