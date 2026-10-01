@@ -3,7 +3,8 @@ import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation';
 import AppLayout from '@/components/AppLayout';
 import { useWorkers } from '@/context/WorkerContext';
-import { getUniqueKTX, getUniqueBuildings, getUniqueRooms, countUniqueBuildings, ROOM_CAPACITY } from '@/data/workers';
+import { getUniqueKTX, getUniqueBuildings, getUniqueRooms, countUniqueBuildings, aggregateKtxOccupancy, ROOM_CAPACITY } from '@/data/workers';
+import KtxOccupancyBreakdown from './components/KtxOccupancyBreakdown';
 import { Users, LayoutGrid, Percent, AlertCircle, FileSpreadsheet, Wifi, ChevronDown, Search, X, Download, UserPlus, AlertTriangle, TrendingUp, TrendingDown, XCircle, GitBranch, HardHat, VenusAndMars } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { createClient } from '@/lib/supabase/client';
@@ -272,7 +273,6 @@ export default function OccupancyDashboardPage() {
   const [todayStats, setTodayStats] = useState<{ entered: number; left: number }>({ entered: 0, left: 0 });
   const [genderStats, setGenderStats] = useState({ male: 0, female: 0 });
   const [contractorStats, setContractorStats] = useState<[string, number][]>([]);
-  const [ktxStats, setKtxStats] = useState({ ktx1: 0, ktx2: 0 });
   const [dashboardTotal, setDashboardTotal] = useState(0);
   const [statsLoading, setStatsLoading] = useState(true);
   const [genderByKtx, setGenderByKtx] = useState<Record<string, { male: number; female: number }>>({});
@@ -283,8 +283,6 @@ export default function OccupancyDashboardPage() {
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   // Room unit map: "ktx||building||room" -> don_vi
   const [roomUnitMap, setRoomUnitMap] = useState<Record<string, string>>({});
-  // KTX capacity for vacant bed calculation
-  const [ktxCapacity, setKtxCapacity] = useState<{ ktx1Total: number; ktx2Total: number }>({ ktx1Total: 0, ktx2Total: 0 });
 
   const isEmpty = !loading && workers.length === 0;
 
@@ -426,21 +424,6 @@ export default function OccupancyDashboardPage() {
           }
         });
 
-        // 3. KTX stats — use exact match (count queries are always accurate)
-        const [ktx1Result, ktx2Result] = await Promise.all([
-          supabase.from('workers').select('*', { count: 'exact', head: true }).eq('ktx', 'KTX 1'),
-          supabase.from('workers').select('*', { count: 'exact', head: true }).eq('ktx', 'KTX 2'),
-        ]);
-        const ktx1 = ktx1Result.count;
-        const ktx2 = ktx2Result.count;
-
-        // Compute KTX room counts for capacity calculation
-        const ktx1RoomSet = new Set<string>();
-        const ktx2RoomSet = new Set<string>();
-        allWorkersData.forEach((row: { ktx: string; gioi_tinh: string; don_vi: string }) => {
-          // We need phong_so for capacity — skip here, use workers context instead
-        });
-
         // Sort by count descending, take top entries — restore display names
         const sortedDonVi: [string, number][] = Object.entries(donViMap)
           .sort((a, b) => b[1] - a[1])
@@ -459,7 +442,6 @@ export default function OccupancyDashboardPage() {
 
         setDashboardTotal(total ?? 0);
         setGenderStats({ male: maleCount, female: femaleCount });
-        setKtxStats({ ktx1: ktx1 ?? 0, ktx2: ktx2 ?? 0 });
         setContractorStats(sortedDonVi);
         setGenderByKtx(genderPerKtx);
         setContractorByKtx(contractorPerKtx);
@@ -490,13 +472,7 @@ export default function OccupancyDashboardPage() {
   const workersWithRoom = useMemo(() => workers.filter(w => w.day && w.phongSo), [workers]);
   const fillRateAll = totalCapacityAll > 0 ? Math.round((workersWithRoom.length / totalCapacityAll) * 100) : 0;
 
-  // Vacant beds per KTX
-  const ktx1RoomCount = useMemo(() => new Set(workers.filter(w => w.ktx === 'KTX 1' && w.day && w.phongSo).map(w => `${w.day}||${w.phongSo}`)).size, [workers]);
-  const ktx2RoomCount = useMemo(() => new Set(workers.filter(w => w.ktx === 'KTX 2' && w.day && w.phongSo).map(w => `${w.day}||${w.phongSo}`)).size, [workers]);
-  const ktx1Capacity = ktx1RoomCount * ROOM_CAPACITY;
-  const ktx2Capacity = ktx2RoomCount * ROOM_CAPACITY;
-  const ktx1Vacant = Math.max(0, ktx1Capacity - ktxStats.ktx1);
-  const ktx2Vacant = Math.max(0, ktx2Capacity - ktxStats.ktx2);
+  const ktxOccupancy = useMemo(() => aggregateKtxOccupancy(workers), [workers]);
   const totalVacant = Math.max(0, totalCapacityAll - workersWithRoom.length);
 
   // Per-KTX metrics (when a specific KTX is selected)
@@ -733,18 +709,11 @@ export default function OccupancyDashboardPage() {
                   <span className="text-xs text-emerald-700 font-medium">Chỗ trống (toàn KTX)</span>
                   <span className="text-sm font-bold text-emerald-700 font-tabular">{kpiVacant}</span>
                 </div>
-                {selectedKTX === 'all' && (
-                  <>
-                    <div className="flex items-center justify-between rounded bg-blue-50 px-2 py-1">
-                      <span className="text-xs text-blue-600 font-medium">KTX 1 trống</span>
-                      <span className="text-xs font-bold text-blue-700 font-tabular">{ktx1Vacant}</span>
-                    </div>
-                    <div className="flex items-center justify-between rounded bg-orange-50 px-2 py-1">
-                      <span className="text-xs text-orange-600 font-medium">KTX 2 trống</span>
-                      <span className="text-xs font-bold text-orange-700 font-tabular">{ktx2Vacant}</span>
-                    </div>
-                  </>
-                )}
+                <KtxOccupancyBreakdown
+                  items={ktxOccupancy}
+                  selectedKtx={selectedKTX}
+                  onSelectKtx={(ktx) => { setSelectedKTX(ktx); setSelectedBuilding(null); }}
+                />
               </div>
             }
           />
