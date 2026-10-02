@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth, UserRole } from '@/context/AuthContext';
-import { createClient } from '@/lib/supabase/client';
+import { createClient, normalizeSupabaseUrl } from '@/lib/supabase/client';
 import { UserPlus, Pencil, Trash2, Shield, ShieldCheck, RefreshCw, AlertCircle, CheckCircle } from 'lucide-react';
 
 // All possible blocks grouped by KTX — stored as "KTX 1 - Dãy 1" format
@@ -218,7 +218,7 @@ export default function UserManagementClient() {
           return;
         }
 
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const supabaseUrl = normalizeSupabaseUrl(process.env.NEXT_PUBLIC_SUPABASE_URL);
         const response = await fetch(`${supabaseUrl}/functions/v1/create-user`, {
           method: 'POST',
           headers: {
