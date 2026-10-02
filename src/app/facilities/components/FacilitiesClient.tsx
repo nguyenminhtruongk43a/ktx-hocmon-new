@@ -668,17 +668,17 @@ export default function FacilitiesClient() {
       )}
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
           <h1 className="text-xl font-bold text-foreground">Quản lý Cơ sở vật chất</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Theo dõi và cập nhật trang thiết bị từng phòng/khu vực</p>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">Theo dõi và cập nhật trang thiết bị từng phòng/khu vực</p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
           <input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImportExcel} />
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={importing}
-            className="flex items-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-60 transition-colors"
+            className="flex items-center justify-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded-lg text-xs sm:text-sm font-medium hover:bg-emerald-700 disabled:opacity-60 transition-colors flex-1 sm:flex-initial"
           >
             {importing ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
             {importing ? 'Đang import...' : 'Import Excel'}
@@ -686,14 +686,14 @@ export default function FacilitiesClient() {
           <button
             onClick={handleExportExcel}
             disabled={loading || sortedRows.length === 0}
-            className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-60 transition-colors"
+            className="flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg text-xs sm:text-sm font-medium hover:bg-blue-700 disabled:opacity-60 transition-colors flex-1 sm:flex-initial"
           >
             <Download size={15} />
             Xuất Excel
           </button>
           <button
             onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 px-3 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
+            className="flex items-center justify-center gap-2 px-3 py-2 bg-primary text-primary-foreground rounded-lg text-xs sm:text-sm font-medium hover:opacity-90 transition-opacity flex-1 sm:flex-initial"
           >
             <Plus size={15} />
             Thêm phòng mới
@@ -806,7 +806,7 @@ export default function FacilitiesClient() {
             <p className="text-sm">{hasActiveFilters ? 'Không tìm thấy kết quả phù hợp' : `Chưa có dữ liệu cho ${activeKtx}`}</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto scrollbar-thin">
             <table className="w-full min-w-[1000px]">
               <thead className="bg-muted/50 border-b border-border">
                 <tr>

@@ -369,9 +369,9 @@ export default function ReportDashboard() {
             </div>
           </div>
 
-          {/* KPI Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-white rounded-xl border p-5 shadow-sm flex items-center justify-between">
+          {/* KPI Cards — 4 on desktop, 2 on tablet, 1 on mobile */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="bg-white rounded-xl border p-4 sm:p-5 shadow-sm flex items-center justify-between">
               <div>
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">CÔNG NHÂN</p>
                 <h3 className="text-3xl font-extrabold text-gray-900 mt-1">{stats.total.toLocaleString('vi-VN')}</h3>
@@ -601,8 +601,8 @@ export default function ReportDashboard() {
             </div>
           )}
 
-          {/* ── KPI Summary Cards ── */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {/* ── KPI Summary Cards — 4 on desktop, 2 on tablet, 1 on mobile ── */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <div className="bg-white rounded-xl border p-4 shadow-sm">
               <div className="flex items-center gap-2 mb-2">
                 <div className="p-2 bg-emerald-50 rounded-lg"><UserPlus size={16} className="text-emerald-600" /></div>
@@ -724,8 +724,8 @@ export default function ReportDashboard() {
                 </h4>
                 <span className="text-xs text-gray-400 font-medium">{filteredDailyData.length} ngày có dữ liệu</span>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+              <div className="overflow-x-auto scrollbar-thin">
+                <table className="w-full text-sm min-w-[550px]">
                   <thead>
                     <tr className="bg-gray-50 border-b">
                       <th className="text-left px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Ngày</th>

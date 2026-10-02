@@ -1,5 +1,5 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 
@@ -9,8 +9,6 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useWorkers } from '@/context/WorkerContext';
-import Icon from '@/components/ui/AppIcon';
-
 
 interface NavItem {
   id: string;
@@ -40,6 +38,30 @@ export default function Sidebar() {
   const { currentUser, isAdmin, signOut } = useAuth();
   const { workerCount, refreshWorkers, refreshing } = useWorkers();
 
+  // Automatically close mobile drawer when navigation route changes
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
+  // Handle ESC key to close mobile drawer & toggle body overflow
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && mobileOpen) {
+        setMobileOpen(false);
+      }
+    };
+    if (mobileOpen) {
+      document.body.style.overflow = 'hidden';
+      window.addEventListener('keydown', handleKeyDown);
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [mobileOpen]);
+
   const visibleNavItems = NAV_ITEMS.filter(item => !item.adminOnly || isAdmin);
   const mainItems = visibleNavItems.filter(i => i.group === 'main');
   const adminItems = visibleNavItems.filter(i => i.group === 'admin');
@@ -58,7 +80,7 @@ export default function Sidebar() {
   const avatarInitial = displayName.charAt(0).toUpperCase();
 
   const NavLink = ({ item, isMobile = false }: { item: NavItem; isMobile?: boolean }) => {
-    const Icon = item.icon;
+    const IconComponent = item.icon;
     const isActive = pathname === item.href;
     const badge = item.dynamicBadge ? workerCount : undefined;
 
@@ -67,12 +89,22 @@ export default function Sidebar() {
         <Link
           href={item.href}
           onClick={() => setMobileOpen(false)}
-          className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${isActive ? 'bg-primary/10 text-primary font-semibold' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+          className={`flex items-center gap-3 px-3.5 py-3 rounded-xl transition-all ${
+            isActive
+              ? 'bg-primary text-white font-semibold shadow-sm'
+              : 'text-foreground hover:bg-muted hover:text-primary'
+          }`}
         >
-          <Icon size={18} className={isActive ? 'text-primary' : ''} />
-          <span className="text-sm">{item.label}</span>
+          <IconComponent size={20} className={isActive ? 'text-white' : 'text-muted-foreground'} />
+          <span className="text-sm flex-1">{item.label}</span>
           {badge !== undefined && badge > 0 && (
-            <span className="ml-auto text-xs bg-primary text-primary-foreground rounded-full px-2 py-0.5 font-semibold">{badge}</span>
+            <span
+              className={`text-xs rounded-full px-2 py-0.5 font-semibold ${
+                isActive ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'
+              }`}
+            >
+              {badge}
+            </span>
           )}
         </Link>
       );
@@ -84,10 +116,12 @@ export default function Sidebar() {
         title={collapsed ? item.label : undefined}
         className={`nav-item relative ${isActive ? 'nav-item-active' : ''}`}
       >
-        <Icon size={18} className={isActive ? 'text-primary' : 'text-muted-foreground'} />
+        <IconComponent size={18} className={isActive ? 'text-primary' : 'text-muted-foreground'} />
         {!collapsed && <span className="truncate">{item.label}</span>}
         {!collapsed && badge !== undefined && badge > 0 && (
-          <span className="ml-auto text-xs bg-primary text-primary-foreground rounded-full px-1.5 py-0.5 font-tabular font-semibold">{badge}</span>
+          <span className="ml-auto text-xs bg-primary text-primary-foreground rounded-full px-1.5 py-0.5 font-tabular font-semibold">
+            {badge}
+          </span>
         )}
         {collapsed && badge !== undefined && badge > 0 && (
           <span className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-primary" />
@@ -178,60 +212,129 @@ export default function Sidebar() {
         </div>
       </aside>
 
-      {/* ── Mobile Top Bar ── */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-sm border-b border-border flex items-center px-4 h-14 gap-3 shadow-sm">
-        <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
-          <Building2 size={14} className="text-primary-foreground" />
-        </div>
-        <span className="font-bold text-sm text-foreground flex-1">KÝ TÚC XÁ HÓC MÔN</span>
-        <button
-          onClick={() => setMobileOpen(v => !v)}
-          className="p-2 rounded-lg text-muted-foreground hover:bg-muted transition-colors"
-          aria-label="Mở menu"
-        >
-          {mobileOpen ? <X size={20} /> : <Menu size={20} />}
-        </button>
-      </div>
-
-      {/* ── Mobile Drawer ── */}
-      {mobileOpen && (
-        <>
-          <div className="lg:hidden fixed inset-0 z-40 bg-black/40" onClick={() => setMobileOpen(false)} />
-          <div className="lg:hidden fixed top-14 left-0 right-0 z-50 bg-card border-b border-border shadow-xl p-4 space-y-1 max-h-[calc(100vh-3.5rem)] overflow-y-auto">
-            <p className="px-4 pb-1 text-xs font-semibold text-muted-foreground uppercase tracking-widest">Điều hướng</p>
-            {mainItems.map(item => <NavLink key={`m-${item.id}`} item={item} isMobile />)}
-            {adminItems.length > 0 && (
-              <>
-                <p className="px-4 pt-3 pb-1 text-xs font-semibold text-muted-foreground uppercase tracking-widest">Quản trị</p>
-                {adminItems.map(item => <NavLink key={`m-${item.id}`} item={item} isMobile />)}
-              </>
-            )}
-            <div className="pt-3 border-t border-border space-y-1">
-              <button
-                onClick={() => { refreshWorkers(); setMobileOpen(false); }}
-                disabled={refreshing}
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-muted-foreground hover:bg-muted transition-colors disabled:opacity-60"
-              >
-                <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
-                <span className="text-sm">{refreshing ? 'Đang tải...' : 'Tải lại dữ liệu'}</span>
-              </button>
-              <button
-                onClick={handleLogout}
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-500 hover:bg-red-50 transition-colors"
-              >
-                <LogOut size={18} />
-                <span className="text-sm font-medium">Đăng xuất</span>
-              </button>
+      {/* ── Mobile Top Bar (Header with Hamburger ☰) ── */}
+      <header className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-card/95 backdrop-blur-md border-b border-border flex items-center justify-between px-3.5 h-14 shadow-sm">
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => setMobileOpen(true)}
+            className="p-2 -ml-1 rounded-lg text-foreground hover:bg-muted active:scale-95 transition-all focus:outline-none focus:ring-2 focus:ring-primary/40"
+            aria-label="Mở menu điều hướng (Hamburger Menu)"
+            title="Mở menu (☰)"
+          >
+            <Menu size={22} className="text-foreground" />
+          </button>
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center flex-shrink-0 shadow-sm">
+              <Building2 size={15} className="text-primary-foreground" />
             </div>
-            <div className="px-4 py-3 flex items-center gap-3 bg-muted/50 rounded-xl mt-2">
-              <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold ${avatarColor}`}>{avatarInitial}</div>
-              <div>
-                <p className="text-sm font-semibold text-foreground">{displayName}</p>
-                <p className="text-xs text-muted-foreground">{roleLabel}</p>
-              </div>
+            <div>
+              <span className="font-bold text-xs sm:text-sm text-foreground tracking-tight block leading-tight">KÝ TÚC XÁ</span>
+              <span className="text-[10px] text-muted-foreground font-medium tracking-wider">HÓC MÔN</span>
             </div>
           </div>
-        </>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={refreshWorkers}
+            disabled={refreshing}
+            className="p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-50"
+            title="Tải lại dữ liệu"
+          >
+            <RefreshCw size={17} className={refreshing ? 'animate-spin text-primary' : ''} />
+          </button>
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-sm ${avatarColor}`}>
+            {avatarInitial}
+          </div>
+        </div>
+      </header>
+
+      {/* ── Mobile Slide-Over Drawer (Trượt ra dạng popup đè lên màn hình) ── */}
+      {mobileOpen && (
+        <div className="lg:hidden fixed inset-0 z-50 overflow-hidden">
+          {/* Backdrop overlay (Bấm ra ngoài thì ẩn đi) */}
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+            onClick={() => setMobileOpen(false)}
+            aria-hidden="true"
+          />
+
+          {/* Drawer container (Trượt từ trái sang) */}
+          <div className="fixed inset-y-0 left-0 w-80 max-w-[85vw] bg-card border-r border-border shadow-2xl flex flex-col z-50 animate-in slide-in-from-left duration-250 ease-out">
+            {/* Drawer Header with Close Button (✕) */}
+            <div className="flex items-center justify-between px-4 py-4 border-b border-border bg-muted/20">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center flex-shrink-0 shadow-sm">
+                  <Building2 size={18} className="text-primary-foreground" />
+                </div>
+                <div>
+                  <span className="font-bold text-sm text-foreground tracking-tight block leading-tight">KÝ TÚC XÁ</span>
+                  <span className="text-[11px] text-muted-foreground font-medium tracking-wider">HÓC MÔN</span>
+                </div>
+              </div>
+              <button
+                onClick={() => setMobileOpen(false)}
+                className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted active:scale-95 transition-all"
+                aria-label="Đóng menu"
+                title="Đóng menu (✕)"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Drawer Navigation Links */}
+            <div className="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-thin">
+              <p className="px-3 pb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
+                Chức năng chính
+              </p>
+              {mainItems.map(item => (
+                <NavLink key={`m-${item.id}`} item={item} isMobile />
+              ))}
+
+              {adminItems.length > 0 && (
+                <>
+                  <p className="px-3 pt-4 pb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
+                    Quản trị hệ thống
+                  </p>
+                  {adminItems.map(item => (
+                    <NavLink key={`m-${item.id}`} item={item} isMobile />
+                  ))}
+                </>
+              )}
+
+              <div className="pt-4 border-t border-border mt-3 space-y-1">
+                <button
+                  onClick={() => { refreshWorkers(); setMobileOpen(false); }}
+                  disabled={refreshing}
+                  className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-60 text-sm"
+                >
+                  <RefreshCw size={18} className={refreshing ? 'animate-spin text-primary' : ''} />
+                  <span>{refreshing ? 'Đang đồng bộ...' : 'Đồng bộ dữ liệu'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Drawer Footer with User Info & Logout */}
+            <div className="p-3 border-t border-border bg-muted/30">
+              <div className="px-3 py-2.5 flex items-center gap-3 bg-card border border-border/80 rounded-xl mb-2 shadow-xs">
+                <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0 shadow-xs ${avatarColor}`}>
+                  {avatarInitial}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-foreground truncate">{displayName}</p>
+                  <p className="text-xs text-muted-foreground truncate">{roleLabel}</p>
+                </div>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-red-600 bg-red-50 hover:bg-red-100 dark:bg-red-950/30 dark:hover:bg-red-950/50 transition-colors text-sm font-semibold"
+              >
+                <LogOut size={16} />
+                <span>Đăng xuất tài khoản</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

@@ -152,7 +152,7 @@ export default function WorkerTable({
   return (
     <div className="card overflow-hidden">
       <div className="overflow-x-auto scrollbar-thin">
-        <table className="w-full border-collapse">
+        <table className="w-full border-collapse min-w-[1100px]">
           <thead>
             <tr className="bg-muted/50 border-b border-border">
               <th className="table-header w-10">
@@ -229,7 +229,7 @@ export default function WorkerTable({
                     <TamTruTag worker={w} onToggle={onToggleTamTru} />
                   </td>
                   <td className="table-cell" onClick={e => e.stopPropagation()}>
-                    <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center justify-end gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                       <button onClick={() => onView(w)} title="Xem" className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-primary transition-colors"><Eye size={14} /></button>
                       {(!canWriteBlock || canWriteBlock(w.day, w.ktx)) ? (
                         <button onClick={() => onEdit(w)} title="Sửa" className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-primary transition-colors"><Pencil size={14} /></button>

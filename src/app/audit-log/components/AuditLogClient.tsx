@@ -112,23 +112,23 @@ export default function AuditLogClient() {
   }
 
   return (
-    <div className="px-6 lg:px-8 xl:px-10 py-6 max-w-screen-2xl mx-auto">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+    <div className="px-3 sm:px-6 lg:px-8 xl:px-10 py-4 sm:py-6 max-w-screen-2xl mx-auto">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 sm:mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Nhật Ký Hệ Thống</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{filtered.length} bản ghi · Tất cả tài khoản Admin</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground">Nhật Ký Hệ Thống</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">{filtered.length} bản ghi · Tất cả tài khoản Admin</p>
         </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-50 border border-red-200">
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-50 border border-red-200 w-fit">
           <span className="w-2 h-2 rounded-full bg-red-500" />
           <span className="text-xs font-semibold text-red-700">Admin Only</span>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="bg-card border border-border rounded-xl p-4 mb-4 space-y-3">
-        <div className="flex flex-wrap gap-3">
+      <div className="bg-card border border-border rounded-xl p-3 sm:p-4 mb-4 space-y-3">
+        <div className="flex flex-col sm:flex-row flex-wrap gap-2.5 sm:gap-3">
           {/* Account filter */}
-          <div className="relative min-w-[180px] flex-1">
+          <div className="relative w-full sm:min-w-[180px] sm:flex-1">
             <User size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <select
               value={filterAccount}
@@ -141,7 +141,7 @@ export default function AuditLogClient() {
           </div>
 
           {/* Action filter */}
-          <div className="relative min-w-[180px] flex-1">
+          <div className="relative w-full sm:min-w-[180px] sm:flex-1">
             <Filter size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <select
               value={filterAction}
@@ -154,7 +154,7 @@ export default function AuditLogClient() {
           </div>
 
           {/* Staff name/email search */}
-          <div className="relative min-w-[200px] flex-1">
+          <div className="relative w-full sm:min-w-[200px] sm:flex-1">
             <User size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input
               type="text"
@@ -167,17 +167,17 @@ export default function AuditLogClient() {
         </div>
 
         {/* Date range filter */}
-        <div className="flex flex-wrap gap-3 items-center">
+        <div className="flex flex-col sm:flex-row flex-wrap gap-2 sm:gap-3 items-start sm:items-center pt-1 border-t border-border/50">
           <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
             <Calendar size={13} />
             Khoảng ngày:
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
             <input
               type="date"
               value={filterDateFrom}
               onChange={e => { setFilterDateFrom(e.target.value); setPage(1); }}
-              className="input-field py-1.5 text-xs w-36"
+              className="input-field py-1.5 text-xs flex-1 sm:w-36"
               placeholder="Từ ngày"
             />
             <span className="text-xs text-muted-foreground">—</span>
@@ -185,14 +185,14 @@ export default function AuditLogClient() {
               type="date"
               value={filterDateTo}
               onChange={e => { setFilterDateTo(e.target.value); setPage(1); }}
-              className="input-field py-1.5 text-xs w-36"
+              className="input-field py-1.5 text-xs flex-1 sm:w-36"
               placeholder="Đến ngày"
             />
           </div>
           {hasActiveFilter && (
             <button
               onClick={clearFilters}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-muted text-muted-foreground hover:text-foreground text-xs font-semibold border border-border transition-colors"
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-muted text-muted-foreground hover:text-foreground text-xs font-semibold border border-border transition-colors w-full sm:w-auto justify-center"
             >
               <X size={12} />Xóa bộ lọc
             </button>
@@ -202,8 +202,8 @@ export default function AuditLogClient() {
 
       {/* Table */}
       <div className="bg-card border border-border rounded-xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto scrollbar-thin">
+          <table className="w-full text-sm min-w-[700px]">
             <thead className="bg-muted/50 border-b border-border">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground whitespace-nowrap">

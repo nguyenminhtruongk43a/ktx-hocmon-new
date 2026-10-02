@@ -605,13 +605,13 @@ export default function OccupancyDashboardPage() {
 
   return (
     <AppLayout>
-      <div className="px-6 lg:px-8 xl:px-10 py-6 max-w-screen-2xl mx-auto">
+      <div className="px-3 sm:px-6 lg:px-8 xl:px-10 py-4 sm:py-6 max-w-screen-2xl mx-auto">
 
         {/* ── Page Header ── */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 sm:mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">KÝ TÚC XÁ HÓC MÔN</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">Trung Tâm Điều Hành · Tổng Quan Hệ Thống</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">KÝ TÚC XÁ HÓC MÔN</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">Trung Tâm Điều Hành · Tổng Quan Hệ Thống</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <GlobalSearchBar onSelectWorker={(id) => {
@@ -631,11 +631,11 @@ export default function OccupancyDashboardPage() {
           </div>
         </div>
 
-        {/* ── Quick Action Buttons ── */}
-        <div className="flex flex-wrap gap-2 mb-5">
+        {/* ── Quick Action Buttons (Responsive on mobile) ── */}
+        <div className="flex flex-col sm:flex-row flex-wrap gap-2.5 mb-5">
           <button
             onClick={() => setShowQuickAdd(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500 text-white text-sm font-semibold hover:bg-orange-600 transition-colors shadow-sm"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-orange-500 text-white text-sm font-semibold hover:bg-orange-600 transition-colors shadow-sm w-full sm:w-auto"
           >
             <UserPlus size={15} />
             Xếp phòng nhanh
@@ -645,14 +645,14 @@ export default function OccupancyDashboardPage() {
           </button>
           <button
             onClick={() => router.push('/worker-management')}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 transition-colors shadow-sm"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 transition-colors shadow-sm w-full sm:w-auto"
           >
             <FileSpreadsheet size={15} />
             Import Excel
           </button>
           <button
             onClick={handleExportReport}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500 text-white text-sm font-semibold hover:bg-emerald-600 transition-colors shadow-sm"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-emerald-500 text-white text-sm font-semibold hover:bg-emerald-600 transition-colors shadow-sm w-full sm:w-auto"
           >
             <Download size={15} />
             Xuất Báo Cáo Ngày
@@ -661,13 +661,13 @@ export default function OccupancyDashboardPage() {
 
         {/* ── KTX Dropdown Filter ── */}
         {!isEmpty && allKTX.length > 0 && (
-          <div className="flex items-center gap-3 mb-5">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-5">
             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">Chọn KTX:</span>
-            <div className="relative">
+            <div className="relative w-full sm:w-auto">
               <select
                 value={selectedKTX}
                 onChange={e => { setSelectedKTX(e.target.value); setSelectedBuilding(null); }}
-                className="appearance-none bg-white border border-border rounded-lg pl-3 pr-8 py-2 text-sm font-semibold text-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary cursor-pointer min-w-[160px]"
+                className="appearance-none bg-white border border-border rounded-lg pl-3 pr-8 py-2 text-sm font-semibold text-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary cursor-pointer w-full sm:min-w-[160px]"
               >
                 <option value="all">Tất cả KTX</option>
                 {allKTX.map(ktx => (
@@ -679,8 +679,8 @@ export default function OccupancyDashboardPage() {
           </div>
         )}
 
-        {/* ── KPI Grid — auto-calculated per selected KTX ── */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
+        {/* ── KPI Grid — 4 on desktop, 2 on tablet, 1 on mobile ── */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-5">
           <KPICard
             label="Công Nhân"
             value={kpiWorkers.toLocaleString('vi-VN')}
@@ -812,7 +812,7 @@ export default function OccupancyDashboardPage() {
         </div>
 
         {/* ── Operational Alerts ── */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
           <AlertCard
             icon={XCircle}
             label="Phòng Trống (0 người)"

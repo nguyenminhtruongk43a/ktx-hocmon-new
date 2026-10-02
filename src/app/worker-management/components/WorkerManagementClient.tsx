@@ -1282,24 +1282,24 @@ export function WorkerManagementClient() {
   }
 
   return (
-    <div className="px-6 lg:px-8 xl:px-10 py-6 max-w-screen-2xl mx-auto">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+    <div className="px-3 sm:px-6 lg:px-8 xl:px-10 py-4 sm:py-6 max-w-screen-2xl mx-auto">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 mb-5 sm:mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Quản Lý Công Nhân</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{filtered.length} / {workers.length} công nhân</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground">Quản Lý Công Nhân</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">{filtered.length} / {workers.length} công nhân</p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
           {canDeleteAll && (
             <>
               <button
                 onClick={() => setShowBulkDeleteFilter(true)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white text-sm font-semibold transition-colors"
+                className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white text-xs sm:text-sm font-semibold transition-colors flex-1 sm:flex-initial"
               >
                 <Filter size={15} />Xóa theo bộ lọc
               </button>
               <button
                 onClick={() => setShowDeleteAll(true)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-red-700 hover:bg-red-800 text-white text-sm font-semibold transition-colors"
+                className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-red-700 hover:bg-red-800 text-white text-xs sm:text-sm font-semibold transition-colors flex-1 sm:flex-initial"
               >
                 <Trash2 size={15} />Xóa tất cả
               </button>
@@ -1308,7 +1308,7 @@ export function WorkerManagementClient() {
           {isAdmin && (
             <button
               onClick={() => setShowBulkAssignKtx(true)}
-              className="relative flex items-center gap-1.5 px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors"
+              className="relative flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs sm:text-sm font-semibold transition-colors flex-1 sm:flex-initial"
             >
               <Building2 size={15} />Gán KTX
               {noKtxCount > 0 && (
@@ -1318,17 +1318,17 @@ export function WorkerManagementClient() {
               )}
             </button>
           )}
-          <button onClick={handleExport} className="btn-secondary">
+          <button onClick={handleExport} className="btn-secondary text-xs sm:text-sm flex-1 sm:flex-initial justify-center">
             <Download size={15} />Xuất Excel
           </button>
-          <button onClick={() => setShowTamTruExport(true)} className="btn-secondary">
+          <button onClick={() => setShowTamTruExport(true)} className="btn-secondary text-xs sm:text-sm flex-1 sm:flex-initial justify-center">
             <FileCheck size={15} />Xuất Tạm Trú
           </button>
-          <button onClick={() => setShowImport(true)} className="btn-secondary">
+          <button onClick={() => setShowImport(true)} className="btn-secondary text-xs sm:text-sm flex-1 sm:flex-initial justify-center">
             <Upload size={15} />Nhập từ Excel
           </button>
           {(isAdmin || (currentUser?.assignedBlocks && currentUser.assignedBlocks.length > 0)) && (
-            <button onClick={() => setShowAddModal(true)} className="btn-primary">
+            <button onClick={() => setShowAddModal(true)} className="btn-primary text-xs sm:text-sm flex-1 sm:flex-initial justify-center">
               <Plus size={15} />Thêm Công Nhân
             </button>
           )}
