@@ -5,83 +5,218 @@ import AppLayout from '@/components/AppLayout';
 import { useWorkers } from '@/context/WorkerContext';
 import { getUniqueKTX, getUniqueBuildings, getUniqueRooms, countUniqueBuildings, aggregateKtxOccupancy, ROOM_CAPACITY } from '@/data/workers';
 import KtxOccupancyBreakdown from './components/KtxOccupancyBreakdown';
-import { Users, LayoutGrid, Percent, AlertCircle, FileSpreadsheet, Wifi, ChevronDown, Search, X, Download, UserPlus, AlertTriangle, TrendingUp, TrendingDown, XCircle, GitBranch, HardHat, VenusAndMars } from 'lucide-react';
+import {
+  Users, LayoutGrid, AlertCircle, FileSpreadsheet, Wifi,
+  ChevronDown, Search, X, Download, UserPlus, AlertTriangle,
+  TrendingUp, TrendingDown, XCircle, GitBranch, HardHat,
+  VenusAndMars, Sparkles, Building, Layers
+} from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { createClient } from '@/lib/supabase/client';
-import Icon from '@/components/ui/AppIcon';
 import WorkerFormModal from '@/app/worker-management/components/WorkerFormModal';
-
-
 
 const RoomDrawer = dynamic(() => import('./components/RoomDrawer'), { ssr: false });
 const DashboardCharts = dynamic(() => import('./components/DashboardCharts'), { ssr: false });
 const RecentEntriesFeed = dynamic(() => import('./components/RecentEntriesFeed'), { ssr: false });
 
-// ─── Room heatmap color helpers ────────────────────────────────────────────
-function getRoomHeatColor(count: number, capacity: number): { bg: string; border: string; label: string; dot: string } {
-  if (count === 0) return { bg: 'bg-gray-100', border: 'border-gray-300', label: 'Trống', dot: 'bg-gray-400' };
+// ─── Room heatmap color helpers (Executive Dark Mode) ──────────────────────
+function getRoomHeatColor(count: number, capacity: number): { bg: string; border: string; label: string; dot: string; textColor: string } {
+  if (count === 0) {
+    return {
+      bg: 'bg-gray-800/90 hover:bg-gray-750',
+      border: 'border-gray-700 hover:border-gray-500',
+      label: 'Trống',
+      dot: 'bg-gray-500',
+      textColor: 'text-gray-400',
+    };
+  }
   const pct = count / capacity;
-  if (pct > 1) return { bg: 'bg-red-100', border: 'border-red-400', label: 'Quá tải', dot: 'bg-red-500' };
-  if (pct >= 1) return { bg: 'bg-yellow-100', border: 'border-yellow-400', label: 'Đầy 100%', dot: 'bg-yellow-500' };
-  return { bg: 'bg-green-100', border: 'border-green-400', label: 'Còn trống', dot: 'bg-green-500' };
+  if (pct > 1) {
+    return {
+      bg: 'bg-rose-950/50 hover:bg-rose-900/60',
+      border: 'border-rose-500/60 hover:border-rose-400',
+      label: 'Quá tải',
+      dot: 'bg-rose-500 shadow-sm shadow-rose-500/50',
+      textColor: 'text-rose-300',
+    };
+  }
+  if (pct >= 1) {
+    return {
+      bg: 'bg-amber-950/40 hover:bg-amber-900/50',
+      border: 'border-amber-500/50 hover:border-amber-400',
+      label: 'Đầy 100%',
+      dot: 'bg-amber-400 shadow-sm shadow-amber-400/50',
+      textColor: 'text-amber-300',
+    };
+  }
+  return {
+    bg: 'bg-emerald-950/40 hover:bg-emerald-900/50',
+    border: 'border-emerald-500/40 hover:border-emerald-400',
+    label: 'Còn trống',
+    dot: 'bg-emerald-400 shadow-sm shadow-emerald-400/50',
+    textColor: 'text-emerald-300',
+  };
 }
 
-// ─── KPI Card ─────────────────────────────────────────────────────────────
-function KPICard({
-  label, value, sub, icon: Icon, color, alert, onClick, badge, extraRows
+// ─── Circular Progress Ring Component ─────────────────────────────────────
+function ProgressRing({
+  radius = 36,
+  stroke = 6,
+  progress = 0,
+  color = '#10B981',
+  trackColor = '#374151',
+  children,
 }: {
-  label: string; value: string | number; sub?: string;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
-  color: string; alert?: boolean; onClick?: () => void; badge?: string;
-  extraRows?: React.ReactNode;
+  radius?: number;
+  stroke?: number;
+  progress: number;
+  color?: string;
+  trackColor?: string;
+  children?: React.ReactNode;
 }) {
+  const normalizedRadius = radius - stroke * 2;
+  const circumference = normalizedRadius * 2 * Math.PI;
+  const clampedProgress = Math.min(Math.max(progress, 0), 100);
+  const strokeDashoffset = circumference - (clampedProgress / 100) * circumference;
+
   return (
-    <div
-      className={`rounded-xl border p-5 flex flex-col gap-3 shadow-sm transition-all ${alert ? 'border-red-200 bg-red-50' : 'bg-white border-border'} ${onClick ? 'cursor-pointer hover:shadow-md hover:-translate-y-0.5' : ''}`}
-      onClick={onClick}
-    >
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{label}</span>
-        <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${color}`}>
-          <Icon size={18} className="text-white" />
+    <div className="relative inline-flex items-center justify-center flex-shrink-0">
+      <svg height={radius * 2} width={radius * 2} className="transform -rotate-90">
+        <circle
+          stroke={trackColor}
+          fill="transparent"
+          strokeWidth={stroke}
+          r={normalizedRadius}
+          cx={radius}
+          cy={radius}
+        />
+        <circle
+          stroke={color}
+          fill="transparent"
+          strokeWidth={stroke}
+          strokeDasharray={`${circumference} ${circumference}`}
+          style={{ strokeDashoffset, transition: 'stroke-dashoffset 0.8s ease-in-out' }}
+          strokeLinecap="round"
+          r={normalizedRadius}
+          cx={radius}
+          cy={radius}
+        />
+      </svg>
+      {children && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          {children}
         </div>
-      </div>
-      <div>
-        <p className={`text-3xl font-bold font-tabular ${alert ? 'text-red-700' : 'text-foreground'}`}>{value}</p>
-        {sub && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
-        {badge && (
-          <span className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold">
-            {badge}
-          </span>
-        )}
-        {extraRows}
-      </div>
+      )}
     </div>
   );
 }
 
-// ─── Alert Card ────────────────────────────────────────────────────────────
-function AlertCard({ icon: Icon, label, value, color, onClick }: {
+// ─── Executive KPI Card ───────────────────────────────────────────────────
+function ExecutiveKPICard({
+  label,
+  value,
+  sub,
+  icon: Icon,
+  iconBg,
+  iconColor,
+  iconBorder,
+  alert,
+  onClick,
+  badge,
+  extraRows,
+  rightVisual,
+}: {
+  label: string;
+  value: string | number;
+  sub?: string;
   icon: React.ComponentType<{ size?: number; className?: string }>;
-  label: string; value: string | number; color: string; onClick?: () => void;
+  iconBg: string;
+  iconColor: string;
+  iconBorder: string;
+  alert?: boolean;
+  onClick?: () => void;
+  badge?: string;
+  extraRows?: React.ReactNode;
+  rightVisual?: React.ReactNode;
 }) {
   return (
     <div
-      className={`flex items-center gap-3 rounded-xl border px-4 py-3 bg-white shadow-sm ${onClick ? 'cursor-pointer hover:shadow-md transition-all' : ''}`}
+      className={`rounded-2xl border p-5 flex flex-col justify-between shadow-xl transition-all duration-300 relative overflow-hidden group ${
+        alert
+          ? 'bg-rose-950/30 border-rose-500/50 hover:border-rose-400'
+          : 'bg-[#1F2937] border-gray-700/60 hover:border-blue-500/40 hover:shadow-blue-500/5'
+      } ${onClick ? 'cursor-pointer hover:-translate-y-0.5' : ''}`}
       onClick={onClick}
     >
-      <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${color}`}>
-        <Icon size={16} className="text-white" />
+      <div className="flex items-start justify-between gap-3">
+        <div className="space-y-1">
+          <span className="text-xs font-bold uppercase tracking-wider text-gray-400 group-hover:text-gray-300 transition-colors">
+            {label}
+          </span>
+          <div className="flex items-baseline gap-2">
+            <p className={`text-3xl sm:text-4xl font-extrabold font-tabular tracking-tight ${alert ? 'text-rose-400' : 'text-white'}`}>
+              {value}
+            </p>
+            {badge && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                {badge}
+              </span>
+            )}
+          </div>
+          {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
+        </div>
+
+        {rightVisual ? (
+          rightVisual
+        ) : (
+          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 border transition-transform duration-300 group-hover:scale-105 ${iconBg} ${iconColor} ${iconBorder}`}>
+            <Icon size={26} />
+          </div>
+        )}
+      </div>
+
+      {extraRows && <div className="mt-3 pt-3 border-t border-gray-700/60">{extraRows}</div>}
+    </div>
+  );
+}
+
+// ─── Executive Alert Card ─────────────────────────────────────────────────
+function ExecutiveAlertCard({
+  icon: Icon,
+  label,
+  value,
+  colorBg,
+  colorText,
+  colorBorder,
+  onClick,
+}: {
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  label: string;
+  value: string | number;
+  colorBg: string;
+  colorText: string;
+  colorBorder: string;
+  onClick?: () => void;
+}) {
+  return (
+    <div
+      className={`flex items-center gap-3.5 rounded-2xl border px-4 py-3.5 bg-[#1F2937] border-gray-700/60 shadow-lg transition-all duration-200 group ${
+        onClick ? 'cursor-pointer hover:border-blue-500/40 hover:bg-gray-800' : 'hover:border-gray-600'
+      }`}
+      onClick={onClick}
+    >
+      <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 border transition-transform duration-200 group-hover:scale-105 ${colorBg} ${colorText} ${colorBorder}`}>
+        <Icon size={20} />
       </div>
       <div className="min-w-0">
-        <p className="text-xs text-muted-foreground font-medium truncate">{label}</p>
-        <p className="text-base font-bold text-foreground font-tabular">{value}</p>
+        <p className="text-xs text-gray-400 font-medium truncate group-hover:text-gray-300 transition-colors">{label}</p>
+        <p className="text-base sm:text-lg font-bold text-white font-tabular tracking-tight">{value}</p>
       </div>
     </div>
   );
 }
 
-// ─── Global Search Bar ─────────────────────────────────────────────────────
+// ─── Global Search Bar (Longer, Top Header Beside Title) ───────────────────
 function GlobalSearchBar({ onSelectWorker }: { onSelectWorker: (id: string) => void }) {
   const { workers } = useWorkers();
   const [query, setQuery] = useState('');
@@ -109,74 +244,97 @@ function GlobalSearchBar({ onSelectWorker }: { onSelectWorker: (id: string) => v
   }, []);
 
   return (
-    <div ref={ref} className="relative w-full max-w-sm">
+    <div ref={ref} className="relative w-full">
       <div className="relative">
-        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+        <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
         <input
           type="text"
-          placeholder="Tìm theo tên, mã NV, CCCD, phòng..."
+          placeholder="Tìm nhanh theo họ tên, mã NV, CCCD, số phòng, SĐT..."
           value={query}
           onChange={e => { setQuery(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
-          className="w-full pl-9 pr-8 py-2 text-sm bg-white border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+          className="w-full pl-10 pr-9 py-2.5 text-sm bg-gray-800/90 text-gray-100 placeholder-gray-400 border border-gray-700/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all shadow-inner"
         />
         {query && (
-          <button onClick={() => { setQuery(''); setOpen(false); }} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-            <X size={14} />
+          <button
+            onClick={() => { setQuery(''); setOpen(false); }}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+          >
+            <X size={15} />
           </button>
         )}
       </div>
+
       {open && results.length > 0 && (
-        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-border rounded-xl shadow-lg z-50 overflow-hidden">
-          {results.map(w => (
-            <button
-              key={w.id}
-              className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-muted text-left transition-colors"
-              onClick={() => { onSelectWorker(w.id); setQuery(''); setOpen(false); }}
-            >
-              <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <span className="text-xs font-bold text-primary">{w.hoVaTen?.charAt(0) || '?'}</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-foreground truncate">{w.hoVaTen}</p>
-                <p className="text-xs text-muted-foreground truncate">
-                  {[w.maNV, w.ktx, w.day && w.phongSo ? `Phòng ${w.phongSo}` : null].filter(Boolean).join(' · ')}
-                </p>
-              </div>
-            </button>
-          ))}
+        <div className="absolute top-full left-0 right-0 mt-1.5 bg-[#1F2937] border border-gray-700 rounded-xl shadow-2xl z-50 overflow-hidden backdrop-blur-md">
+          <div className="px-3 py-1.5 border-b border-gray-700/60 bg-gray-800/50">
+            <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+              Kết quả tìm kiếm ({results.length})
+            </span>
+          </div>
+          <div className="max-h-80 overflow-y-auto scrollbar-thin">
+            {results.map(w => (
+              <button
+                key={w.id}
+                className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-700/70 text-left transition-colors border-b border-gray-700/30 last:border-b-0"
+                onClick={() => { onSelectWorker(w.id); setQuery(''); setOpen(false); }}
+              >
+                <div className="w-8 h-8 rounded-lg bg-blue-500/20 border border-blue-500/30 flex items-center justify-center flex-shrink-0">
+                  <span className="text-xs font-bold text-blue-400">{w.hoVaTen?.charAt(0) || '?'}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-white truncate">{w.hoVaTen}</p>
+                  <p className="text-xs text-gray-400 truncate">
+                    {[w.maNV ? `#${w.maNV}` : null, w.ktx, w.day && w.phongSo ? `Phòng ${w.phongSo}` : null, w.donVi].filter(Boolean).join(' · ')}
+                  </p>
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
       )}
+
       {open && query.length >= 2 && results.length === 0 && (
-        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-border rounded-xl shadow-lg z-50 px-4 py-3 text-sm text-muted-foreground">
-          Không tìm thấy kết quả
+        <div className="absolute top-full left-0 right-0 mt-1.5 bg-[#1F2937] border border-gray-700 rounded-xl shadow-2xl z-50 px-4 py-3 text-sm text-gray-400 text-center">
+          Không tìm thấy công nhân phù hợp với từ khóa
         </div>
       )}
     </div>
   );
 }
 
-// ─── Room Tooltip ──────────────────────────────────────────────────────────
-function RoomTooltip({ workers, room, onClose }: {
+// ─── Room Tooltip (Dark Theme) ─────────────────────────────────────────────
+function RoomTooltip({
+  workers,
+  room,
+  onClose,
+}: {
   workers: { hoVaTen: string; maNV: string }[];
   room: string;
   onClose: () => void;
 }) {
   return (
-    <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 bg-gray-900 text-white rounded-xl shadow-xl p-3 text-xs">
-      <div className="flex items-center justify-between mb-2">
-        <span className="font-bold">Phòng {room}</span>
-        <button onClick={onClose} className="text-gray-400 hover:text-white"><X size={12} /></button>
+    <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 bg-gray-900 border border-gray-700 text-white rounded-xl shadow-2xl p-3 text-xs">
+      <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-gray-800">
+        <span className="font-bold text-white flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-blue-400" />
+          Phòng {room}
+        </span>
+        <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+          <X size={13} />
+        </button>
       </div>
       {workers.length === 0 ? (
-        <p className="text-gray-400">Phòng trống</p>
+        <p className="text-gray-400 py-1">Phòng trống (0 người)</p>
       ) : (
-        <ul className="space-y-1 max-h-40 overflow-y-auto">
+        <ul className="space-y-1.5 max-h-44 overflow-y-auto scrollbar-thin pr-1">
           {workers.map((w, i) => (
-            <li key={i} className="flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0" />
-              <span className="truncate">{w.hoVaTen}</span>
-              {w.maNV && <span className="text-gray-400 flex-shrink-0">#{w.maNV}</span>}
+            <li key={i} className="flex items-center justify-between gap-1.5">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" />
+                <span className="truncate text-gray-200">{w.hoVaTen}</span>
+              </div>
+              {w.maNV && <span className="text-[10px] text-gray-400 flex-shrink-0 font-tabular">#{w.maNV}</span>}
             </li>
           ))}
         </ul>
@@ -187,7 +345,6 @@ function RoomTooltip({ workers, room, onClose }: {
 }
 
 // ─── Heatmap Room Cell ─────────────────────────────────────────────────────
-// Workers prop is already scoped to ktx+building by parent — no extra filtering needed
 function HeatmapRoomCell({
   room, count, capacity, ktx, building, workers, onClickRoom, unitName
 }: {
@@ -198,24 +355,29 @@ function HeatmapRoomCell({
   unitName?: string;
 }) {
   const [showTooltip, setShowTooltip] = useState(false);
-  const { bg, border, label, dot } = getRoomHeatColor(count, capacity);
+  const { bg, border, label, dot, textColor } = getRoomHeatColor(count, capacity);
 
   return (
     <div className="relative">
       <div
-        className={`border rounded-lg p-2.5 cursor-pointer transition-all hover:shadow-md hover:scale-105 ${bg} ${border}`}
+        className={`border rounded-xl p-2.5 cursor-pointer transition-all duration-200 hover:scale-[1.04] hover:shadow-lg hover:shadow-black/30 ${bg} ${border}`}
         onClick={() => onClickRoom(ktx, building, room)}
         onMouseEnter={() => setShowTooltip(true)}
         onMouseLeave={() => setShowTooltip(false)}
       >
         <div className="flex items-center justify-between mb-1">
-          <span className="text-xs font-bold text-foreground">P.{room}</span>
+          <span className="text-xs font-bold text-gray-200">P.{room}</span>
           <span className={`w-2 h-2 rounded-full ${dot}`} />
         </div>
-        <p className="text-xs font-tabular font-semibold text-foreground">{count}/{capacity}</p>
-        <p className="text-[10px] text-muted-foreground mt-0.5">{label}</p>
+        <p className="text-xs font-tabular font-bold text-white">{count}/{capacity}</p>
+        <p className={`text-[10px] font-medium mt-0.5 ${textColor}`}>{label}</p>
         {unitName && (
-          <p className="text-[10px] font-semibold text-blue-700 bg-blue-50 rounded px-1 py-0.5 mt-1 truncate" title={unitName}>{unitName}</p>
+          <p
+            className="text-[10px] font-semibold text-blue-300 bg-blue-500/20 border border-blue-500/30 rounded px-1 py-0.5 mt-1 truncate"
+            title={unitName}
+          >
+            {unitName}
+          </p>
         )}
       </div>
       {showTooltip && (
@@ -225,9 +387,9 @@ function HeatmapRoomCell({
   );
 }
 
-// ─── Block title with assigned staff name ─────────────────────────────────
+// ─── Block Title With Staff Name ──────────────────────────────────────────
 interface BlockAssignment {
-  blockKey: string; // e.g. "KTX 1 - Dãy 3"
+  blockKey: string;
   staffName: string;
 }
 
@@ -246,24 +408,24 @@ function BlockTitle({
     <div className="mb-3">
       <div className="flex items-center justify-between mb-1">
         <div className="flex flex-col gap-0.5">
-          <span className="text-sm font-semibold text-foreground">{building}</span>
-          <span className={`text-[10px] font-medium flex items-center gap-1 ${assigned ? 'text-blue-600' : 'text-muted-foreground'}`}>
-            <GitBranch size={9} />
+          <span className="text-sm font-bold text-white">{building}</span>
+          <span className={`text-[11px] font-medium flex items-center gap-1 ${assigned ? 'text-blue-400' : 'text-gray-400'}`}>
+            <GitBranch size={10} />
             {staffLabel}
           </span>
         </div>
-        <span className="text-xs text-muted-foreground font-tabular">
+        <span className="text-xs text-gray-400 font-tabular">
           {buildingWorkerCount}/{totalCap} · {Math.round(occupancyPct * 100)}% đầy
         </span>
       </div>
-      <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
-        <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${Math.min(occupancyPct * 100, 100)}%` }} />
+      <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
+        <div className={`h-full rounded-full transition-all duration-500 ${barColor}`} style={{ width: `${Math.min(occupancyPct * 100, 100)}%` }} />
       </div>
     </div>
   );
 }
 
-// ─── Main Page ─────────────────────────────────────────────────────────────
+// ─── Main Executive Dashboard Page ─────────────────────────────────────────
 export default function OccupancyDashboardPage() {
   const { workers, loading, addWorker } = useWorkers();
   const router = useRouter();
@@ -277,11 +439,8 @@ export default function OccupancyDashboardPage() {
   const [statsLoading, setStatsLoading] = useState(true);
   const [genderByKtx, setGenderByKtx] = useState<Record<string, { male: number; female: number }>>({});
   const [contractorByKtx, setContractorByKtx] = useState<Record<string, [string, number][]>>({});
-  // Block assignments: map of "KTX X - Dãy Y" -> staffName
   const [blockAssignments, setBlockAssignments] = useState<BlockAssignment[]>([]);
-  // Quick-add modal state
   const [showQuickAdd, setShowQuickAdd] = useState(false);
-  // Room unit map: "ktx||building||room" -> don_vi
   const [roomUnitMap, setRoomUnitMap] = useState<Record<string, string>>({});
 
   const isEmpty = !loading && workers.length === 0;
@@ -337,7 +496,6 @@ export default function OccupancyDashboardPage() {
         allData = allData.concat(batch as { ktx: string; day: string; phong_so: string; don_vi: string }[]);
         if (batch.length < SIZE) hasMore = false; else from += SIZE;
       }
-      // Build map: first non-empty don_vi wins per room
       const map: Record<string, string> = {};
       allData.forEach(row => {
         if (!row.ktx || !row.day || !row.phong_so || !row.don_vi?.trim()) return;
@@ -349,9 +507,9 @@ export default function OccupancyDashboardPage() {
     fetchRoomUnits();
   }, [workers.length]);
 
-  // Track workers length to trigger stats re-fetch when data changes
   const workersLength = workers.length;
 
+  // ── Fetch statistics ──────────────────────────────────────────────────────
   useEffect(() => {
     let active = true;
     const fetchStats = async () => {
@@ -359,12 +517,10 @@ export default function OccupancyDashboardPage() {
       const supabase = createClient();
 
       try {
-        // 1. Total count
         const { count: total } = await supabase
           .from('workers')
           .select('*', { count: 'exact', head: true });
 
-        // 2+4. Paginated fetch for all workers' ktx, gioi_tinh, don_vi (bypasses 1000-row Supabase limit)
         let allWorkersData: { ktx: string; gioi_tinh: string; don_vi: string }[] = [];
         let fetchFrom = 0;
         const FETCH_SIZE = 1000;
@@ -379,43 +535,38 @@ export default function OccupancyDashboardPage() {
           if (batch.length < FETCH_SIZE) { fetchHasMore = false; } else { fetchFrom += FETCH_SIZE; }
         }
 
-        // Count gender totals and per-KTX from paginated data
         let maleCount = 0;
         let femaleCount = 0;
         const donViMap: Record<string, number> = {};
-        const donViDisplayMap: Record<string, string> = {}; // uppercase key → first-seen display name
+        const donViDisplayMap: Record<string, string> = {};
         const donViPerKtx: Record<string, Record<string, number>> = {};
         const genderPerKtx: Record<string, { male: number; female: number }> = {};
 
         allWorkersData.forEach(row => {
           const ktxKey = (row.ktx ?? '').trim();
           const g = (row.gioi_tinh ?? '').trim();
-          // Normalize to ASCII lowercase for reliable comparison across all Vietnamese input variants
           const gNorm = g
             .toLowerCase()
             .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '') // strip diacritics
+            .replace(/[\u0300-\u036f]/g, '')
             .trim();
 
-          // "Nam", "NAM", "nam" → "nam"; "Nữ", "NỮ", "nu", "nư", "nữ" → "nu"
           const isMale = gNorm === 'nam';
           const isFemale = !isMale && (gNorm === 'nu' || gNorm === 'n' || (gNorm.startsWith('n') && gNorm.length <= 3 && gNorm !== 'nam'));
 
           if (isMale) maleCount++;
           else if (isFemale) femaleCount++;
 
-          // Gender per KTX
           if (ktxKey) {
             if (!genderPerKtx[ktxKey]) genderPerKtx[ktxKey] = { male: 0, female: 0 };
             if (isMale) genderPerKtx[ktxKey].male++;
             else if (isFemale) genderPerKtx[ktxKey].female++;
           }
 
-          // Contractor overall and per KTX — group case-insensitively (merge "ME", "me", "Me")
           const dvRaw = (row.don_vi ?? '').trim();
           if (dvRaw) {
             const dvKey = dvRaw.toUpperCase();
-            if (!donViDisplayMap[dvKey]) donViDisplayMap[dvKey] = dvRaw; // keep first-seen casing for display
+            if (!donViDisplayMap[dvKey]) donViDisplayMap[dvKey] = dvRaw;
             donViMap[dvKey] = (donViMap[dvKey] || 0) + 1;
             if (ktxKey) {
               if (!donViPerKtx[ktxKey]) donViPerKtx[ktxKey] = {};
@@ -424,7 +575,6 @@ export default function OccupancyDashboardPage() {
           }
         });
 
-        // Sort by count descending, take top entries — restore display names
         const sortedDonVi: [string, number][] = Object.entries(donViMap)
           .sort((a, b) => b[1] - a[1])
           .slice(0, 6)
@@ -453,10 +603,9 @@ export default function OccupancyDashboardPage() {
     };
     fetchStats();
     return () => { active = false; };
-  }, [workersLength]); // Re-fetch stats whenever workers count changes (e.g. after Excel import)
+  }, [workersLength]);
 
-  // ── KPI calculations scoped to selected KTX ───────────────────────────────
-  // All-KTX metrics
+  // ── KPI calculations ──────────────────────────────────────────────────────
   const totalCapacityAll = useMemo(() => {
     const roomSet = new Set(workers.map(w => `${w.ktx}||${w.day}||${w.phongSo}`).filter(k => !k.startsWith('||')));
     return roomSet.size * ROOM_CAPACITY;
@@ -475,7 +624,6 @@ export default function OccupancyDashboardPage() {
   const ktxOccupancy = useMemo(() => aggregateKtxOccupancy(workers), [workers]);
   const totalVacant = Math.max(0, totalCapacityAll - workersWithRoom.length);
 
-  // Per-KTX metrics (when a specific KTX is selected)
   const filteredRoomsSet = useMemo(() => {
     return new Set(filteredWorkers.map(w => `${w.ktx}||${w.day}||${w.phongSo}`).filter(k => !k.startsWith('||')));
   }, [filteredWorkers]);
@@ -486,7 +634,6 @@ export default function OccupancyDashboardPage() {
   const filteredFillRate = filteredCapacity > 0 ? Math.round((filteredWithRoom / filteredCapacity) * 100) : 0;
   const filteredTotal = filteredWorkers.length;
 
-  // Missing data: workers without day OR phongSo (scoped to selected KTX)
   const missingData = useMemo(() => filteredWorkers.filter(w => !w.day || !w.phongSo).length, [filteredWorkers]);
 
   // ── Operational Alerts ────────────────────────────────────────────────────
@@ -507,7 +654,6 @@ export default function OccupancyDashboardPage() {
     return count;
   }, [roomWorkerMap]);
 
-  // Today's changes
   useEffect(() => {
     const today = new Date();
     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
@@ -532,13 +678,11 @@ export default function OccupancyDashboardPage() {
     setTodayStats({ entered, left });
   }, [workers]);
 
-  // KTX list for room grid
   const ktxListForGrid = useMemo(() => {
     if (selectedKTX !== 'all') return [selectedKTX];
     return allKTX;
   }, [selectedKTX, allKTX]);
 
-  // Drawer workers: scoped to exact ktx + building + room
   const drawerWorkers = useMemo(() => {
     if (!drawerRoom) return [];
     return workers.filter(w =>
@@ -548,7 +692,6 @@ export default function OccupancyDashboardPage() {
     );
   }, [drawerRoom, workers]);
 
-  // ── Export daily report ───────────────────────────────────────────────────
   const handleExportReport = useCallback(() => {
     const today = new Date();
     const dateStr = `${today.getDate().toString().padStart(2, '0')}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getFullYear()}`;
@@ -590,442 +733,549 @@ export default function OccupancyDashboardPage() {
     setDrawerRoom({ ktx, building, room });
   }, []);
 
-  // ── KPI display values (auto-calculated per selected KTX) ─────────────────
-  const kpiWorkers = selectedKTX === 'all'
-    ? dashboardTotal
-    : filteredTotal;
+  const kpiWorkers = selectedKTX === 'all' ? dashboardTotal : filteredTotal;
   const kpiBuildings = selectedKTX === 'all' ? totalBuildingsAll : filteredBuildingCount;
   const kpiRooms = selectedKTX === 'all' ? totalRoomsAll : filteredRoomCount;
   const kpiCapacity = selectedKTX === 'all' ? totalCapacityAll : filteredCapacity;
   const kpiFillRate = selectedKTX === 'all' ? fillRateAll : filteredFillRate;
   const kpiWithRoom = selectedKTX === 'all' ? workersWithRoom.length : filteredWithRoom;
-  const kpiVacant = selectedKTX === 'all'
-    ? totalVacant
-    : Math.max(0, filteredCapacity - filteredWithRoom);
+  const kpiVacant = selectedKTX === 'all' ? totalVacant : Math.max(0, filteredCapacity - filteredWithRoom);
 
   return (
     <AppLayout>
-      <div className="px-3 sm:px-6 lg:px-8 xl:px-10 py-4 sm:py-6 max-w-screen-2xl mx-auto">
+      <div className="min-h-screen bg-[#111827] text-[#E5E7EB] transition-colors duration-200">
+        <div className="px-3 sm:px-6 lg:px-8 xl:px-10 py-5 sm:py-7 max-w-screen-2xl mx-auto space-y-6">
 
-        {/* ── Page Header ── */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 sm:mb-6">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-foreground">KÝ TÚC XÁ HÓC MÔN</h1>
-            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">Trung Tâm Điều Hành · Tổng Quan Hệ Thống</p>
+          {/* ── 1. Header & Long Global Search Bar on Top Right ── */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-gray-800">
+            {/* Title Section */}
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 p-0.5 shadow-lg shadow-blue-500/20 flex-shrink-0">
+                <div className="w-full h-full bg-gray-900 rounded-[14px] flex items-center justify-center">
+                  <Building size={22} className="text-blue-400" />
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <h1 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
+                    KÝ TÚC XÁ HÓC MÔN
+                  </h1>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    Điều Hành Thời Gian Thực
+                  </span>
+                </div>
+                <p className="text-xs sm:text-sm text-gray-400 mt-0.5">
+                  Bảng thông tin chỉ huy và giám sát lưu trú thông minh
+                </p>
+              </div>
+            </div>
+
+            {/* Long Search Bar in Header */}
+            <div className="flex-1 max-w-xl lg:mx-4">
+              <GlobalSearchBar
+                onSelectWorker={(id) => {
+                  const w = workers.find(x => x.id === id);
+                  if (w?.ktx && w?.day && w?.phongSo) {
+                    setDrawerRoom({ ktx: w.ktx, building: w.day, room: w.phongSo });
+                  }
+                }}
+              />
+            </div>
+
+            {/* Status & KTX Selection Filter */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gray-800/90 text-gray-300 text-xs font-semibold border border-gray-700">
+                <Wifi size={13} className="text-emerald-400 animate-pulse" />
+                Supabase Connected
+              </span>
+
+              {/* KTX Selector Dropdown */}
+              {!isEmpty && allKTX.length > 0 && (
+                <div className="relative">
+                  <select
+                    value={selectedKTX}
+                    onChange={e => { setSelectedKTX(e.target.value); setSelectedBuilding(null); }}
+                    className="appearance-none bg-gray-800 border border-gray-700 rounded-xl pl-3.5 pr-8 py-2 text-xs font-bold text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer min-w-[130px]"
+                  >
+                    <option value="all">Tất cả KTX</option>
+                    {allKTX.map(ktx => (
+                      <option key={ktx} value={ktx}>{ktx}</option>
+                    ))}
+                  </select>
+                  <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                </div>
+              )}
+            </div>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <GlobalSearchBar onSelectWorker={(id) => {
-              const w = workers.find(x => x.id === id);
-              if (w?.ktx && w?.day && w?.phongSo) setDrawerRoom({ ktx: w.ktx, building: w.day, room: w.phongSo });
-            }} />
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-100 text-green-700 text-xs font-semibold border border-green-200">
-              <Wifi size={12} className="animate-pulse" />
-              Realtime
-            </span>
+
+          {/* ── 2. Unified Action Buttons Bar (Gradient Blues) ── */}
+          <div className="flex flex-col sm:flex-row flex-wrap items-center gap-3">
+            <button
+              onClick={() => setShowQuickAdd(true)}
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-sm font-semibold shadow-lg shadow-blue-500/25 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <UserPlus size={16} />
+              <span>Xếp phòng nhanh</span>
+              {missingData > 0 && (
+                <span className="bg-white/20 text-white text-xs font-bold rounded-full px-2 py-0.5 leading-none">
+                  {missingData}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => router.push('/worker-management')}
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white text-sm font-semibold shadow-lg shadow-blue-500/25 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <FileSpreadsheet size={16} />
+              <span>Import Excel</span>
+            </button>
+
+            <button
+              onClick={handleExportReport}
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-sm font-semibold shadow-lg shadow-emerald-500/25 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <Download size={16} />
+              <span>Xuất Báo Cáo Ngày</span>
+            </button>
+
             {loading && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold border border-blue-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-                Đang tải...
+              <span className="text-xs text-blue-400 font-medium flex items-center gap-1.5 ml-auto">
+                <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping" />
+                Đang đồng bộ dữ liệu...
               </span>
             )}
           </div>
-        </div>
 
-        {/* ── Quick Action Buttons (Responsive on mobile) ── */}
-        <div className="flex flex-col sm:flex-row flex-wrap gap-2.5 mb-5">
-          <button
-            onClick={() => setShowQuickAdd(true)}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-orange-500 text-white text-sm font-semibold hover:bg-orange-600 transition-colors shadow-sm w-full sm:w-auto"
-          >
-            <UserPlus size={15} />
-            Xếp phòng nhanh
-            {missingData > 0 && (
-              <span className="bg-white text-orange-600 text-xs font-bold rounded-full px-1.5 py-0.5 leading-none">{missingData}</span>
-            )}
-          </button>
-          <button
-            onClick={() => router.push('/worker-management')}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 transition-colors shadow-sm w-full sm:w-auto"
-          >
-            <FileSpreadsheet size={15} />
-            Import Excel
-          </button>
-          <button
-            onClick={handleExportReport}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-emerald-500 text-white text-sm font-semibold hover:bg-emerald-600 transition-colors shadow-sm w-full sm:w-auto"
-          >
-            <Download size={15} />
-            Xuất Báo Cáo Ngày
-          </button>
-        </div>
+          {/* ── 3. Four Executive KPI Cards in a Horizontal Row ── */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Card 1: Công nhân */}
+            <ExecutiveKPICard
+              label="Tổng Công Nhân"
+              value={kpiWorkers.toLocaleString('vi-VN')}
+              sub={selectedKTX !== 'all'
+                ? `${selectedKTX} · ${kpiBuildings} dãy hiện hữu`
+                : `${totalKTXAll} ký túc xá · ${kpiBuildings} dãy nhà`}
+              icon={Users}
+              iconBg="bg-blue-500/10"
+              iconColor="text-blue-400"
+              iconBorder="border-blue-500/25"
+            />
 
-        {/* ── KTX Dropdown Filter ── */}
-        {!isEmpty && allKTX.length > 0 && (
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-5">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">Chọn KTX:</span>
-            <div className="relative w-full sm:w-auto">
-              <select
-                value={selectedKTX}
-                onChange={e => { setSelectedKTX(e.target.value); setSelectedBuilding(null); }}
-                className="appearance-none bg-white border border-border rounded-lg pl-3 pr-8 py-2 text-sm font-semibold text-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary cursor-pointer w-full sm:min-w-[160px]"
-              >
-                <option value="all">Tất cả KTX</option>
-                {allKTX.map(ktx => (
-                  <option key={ktx} value={ktx}>{ktx}</option>
-                ))}
-              </select>
-              <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            {/* Card 2: Dãy & Phòng */}
+            <ExecutiveKPICard
+              label="Quy Mô Cơ Sở"
+              value={`${kpiBuildings} Dãy / ${kpiRooms} Phòng`}
+              sub={`Tổng sức chứa thiết kế: ${kpiCapacity.toLocaleString('vi-VN')} chỗ`}
+              icon={LayoutGrid}
+              iconBg="bg-indigo-500/10"
+              iconColor="text-indigo-400"
+              iconBorder="border-indigo-500/25"
+            />
+
+            {/* Card 3: Tỷ Lệ Lấp Đầy with Circular Progress Ring */}
+            <ExecutiveKPICard
+              label="Tỷ Lệ Lấp Đầy"
+              value={`${kpiFillRate}%`}
+              sub={`${kpiWithRoom}/${kpiCapacity} chỗ đã sử dụng`}
+              icon={Layers}
+              iconBg="bg-emerald-500/10"
+              iconColor="text-emerald-400"
+              iconBorder="border-emerald-500/25"
+              rightVisual={
+                <ProgressRing progress={kpiFillRate} radius={36} stroke={6} color="#10B981" trackColor="#374151">
+                  <span className="text-xs font-extrabold text-emerald-400 font-tabular">{kpiFillRate}%</span>
+                </ProgressRing>
+              }
+              extraRows={
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1">
+                    <span className="text-xs text-emerald-300 font-medium">Chỗ trống còn lại:</span>
+                    <span className="text-sm font-bold text-emerald-400 font-tabular">{kpiVacant.toLocaleString('vi-VN')}</span>
+                  </div>
+                  <KtxOccupancyBreakdown
+                    items={ktxOccupancy}
+                    selectedKtx={selectedKTX}
+                    onSelectKtx={(ktx) => { setSelectedKTX(ktx); setSelectedBuilding(null); }}
+                  />
+                </div>
+              }
+            />
+
+            {/* Card 4: Cảnh báo & Thiếu dữ liệu */}
+            <ExecutiveKPICard
+              label="Cần Xử Lý Phòng"
+              value={missingData}
+              sub={missingData > 0 ? "Công nhân chưa được gán phòng" : "Trạng thái tối ưu, không có lỗi"}
+              icon={AlertCircle}
+              iconBg={missingData > 0 ? "bg-rose-500/10" : "bg-emerald-500/10"}
+              iconColor={missingData > 0 ? "text-rose-400" : "text-emerald-400"}
+              iconBorder={missingData > 0 ? "border-rose-500/25" : "border-emerald-500/25"}
+              alert={missingData > 0}
+              onClick={handleMissingDataClick}
+              badge={missingData > 0 ? 'Nhấn để xếp phòng' : undefined}
+            />
+          </div>
+
+          {/* ── 4. Operational Alerts Grid ── */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+            <ExecutiveAlertCard
+              icon={XCircle}
+              label="Phòng Trống (0 người)"
+              value={`${Array.from(roomWorkerMap.values()).filter(v => v === 0).length} phòng`}
+              colorBg="bg-gray-800"
+              colorText="text-gray-400"
+              colorBorder="border-gray-700"
+              onClick={handleEmptyRoomsClick}
+            />
+            <ExecutiveAlertCard
+              icon={AlertTriangle}
+              label="Phòng Quá Tải (> 10 người)"
+              value={`${overloadedRooms} phòng`}
+              colorBg={overloadedRooms > 0 ? "bg-rose-500/10" : "bg-gray-800"}
+              colorText={overloadedRooms > 0 ? "text-rose-400" : "text-gray-500"}
+              colorBorder={overloadedRooms > 0 ? "border-rose-500/30" : "border-gray-700"}
+            />
+            <ExecutiveAlertCard
+              icon={TrendingUp}
+              label="Vào Hôm Nay"
+              value={`+${todayStats.entered} công nhân`}
+              colorBg="bg-emerald-500/10"
+              colorText="text-emerald-400"
+              colorBorder="border-emerald-500/30"
+            />
+            <ExecutiveAlertCard
+              icon={TrendingDown}
+              label="Ra Hôm Nay"
+              value={`-${todayStats.left} công nhân`}
+              colorBg="bg-amber-500/10"
+              colorText="text-amber-400"
+              colorBorder="border-amber-500/30"
+            />
+          </div>
+
+          {/* ── 5. Detailed Statistics: Gender & Contractors ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {/* Gender Stats */}
+            <div className="rounded-2xl border border-gray-700/60 bg-[#1F2937] p-5 shadow-xl transition-all duration-200 hover:border-gray-600/80">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+                    <VenusAndMars size={20} />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-white tracking-tight">Thống Kê Giới Tính</h2>
+                    <p className="text-xs text-gray-400">Phân bố nhân sự theo giới tính và KTX</p>
+                  </div>
+                </div>
+                <span className="text-xs text-gray-400 font-semibold font-tabular">
+                  Tổng: {(genderStats.male + genderStats.female).toLocaleString('vi-VN')}
+                </span>
+              </div>
+
+              {/* Overall totals */}
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="rounded-xl bg-blue-950/40 border border-blue-500/30 p-3.5 hover:bg-blue-900/40 transition-colors">
+                  <p className="text-xs text-blue-300 font-semibold">Nam (Toàn hệ thống)</p>
+                  <p className="text-2xl font-bold text-blue-400 font-tabular mt-0.5">{genderStats.male.toLocaleString('vi-VN')}</p>
+                </div>
+                <div className="rounded-xl bg-pink-950/40 border border-pink-500/30 p-3.5 hover:bg-pink-900/40 transition-colors">
+                  <p className="text-xs text-pink-300 font-semibold">Nữ (Toàn hệ thống)</p>
+                  <p className="text-2xl font-bold text-pink-400 font-tabular mt-0.5">{genderStats.female.toLocaleString('vi-VN')}</p>
+                </div>
+              </div>
+
+              {/* Per-KTX breakdown table */}
+              {Object.keys(genderByKtx).sort().length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Chi tiết từng khu KTX</p>
+                  <div className="space-y-1.5">
+                    {Object.keys(genderByKtx).sort().map(ktxKey => (
+                      <div
+                        key={ktxKey}
+                        className="rounded-xl border border-gray-700/50 bg-gray-800/60 px-3.5 py-2.5 flex items-center justify-between hover:bg-gray-700/60 hover:border-blue-500/40 transition-all duration-150"
+                      >
+                        <span className="text-xs font-bold text-white">{ktxKey}</span>
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs text-blue-300 font-medium">
+                            Nam: <strong className="font-tabular text-blue-400">{genderByKtx[ktxKey].male}</strong>
+                          </span>
+                          <span className="text-xs text-pink-300 font-medium">
+                            Nữ: <strong className="font-tabular text-pink-400">{genderByKtx[ktxKey].female}</strong>
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Contractor/Unit Stats */}
+            <div className="rounded-2xl border border-gray-700/60 bg-[#1F2937] p-5 shadow-xl transition-all duration-200 hover:border-gray-600/80">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                    <HardHat size={20} />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-white tracking-tight">Đơn Vị & Nhà Thầu</h2>
+                    <p className="text-xs text-gray-400">Phân bố quân số theo nhà thầu thi công</p>
+                  </div>
+                </div>
+                <span className="text-xs text-gray-400 font-semibold font-tabular">
+                  Top 6 đơn vị
+                </span>
+              </div>
+
+              {/* Overall totals grid */}
+              <div className="mb-4">
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Tổng quân số lớn nhất</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {contractorStats.length > 0 ? contractorStats.map(([name, count]) => (
+                    <div
+                      key={name}
+                      className="flex items-center justify-between rounded-xl bg-gray-800/80 border border-gray-700/60 px-3.5 py-2.5 hover:bg-gray-700/70 hover:border-amber-500/40 transition-all duration-150"
+                    >
+                      <span className="text-xs font-semibold text-gray-200 truncate mr-2">{name}</span>
+                      <span className="text-sm font-bold text-amber-400 font-tabular">{count}</span>
+                    </div>
+                  )) : (
+                    <p className="text-xs text-gray-500 col-span-2 py-3 text-center">Chưa có dữ liệu đơn vị</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Per-KTX breakdown */}
+              {Object.keys(contractorByKtx).sort().length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Phân theo từng KTX</p>
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
+                    {Object.keys(contractorByKtx).sort().map(ktxKey => (
+                      <div
+                        key={ktxKey}
+                        className="rounded-xl border border-gray-700/50 bg-gray-800/60 px-3.5 py-2.5 hover:bg-gray-700/60 hover:border-blue-500/40 transition-all duration-150"
+                      >
+                        <p className="text-xs font-bold text-white mb-1.5">{ktxKey}</p>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {contractorByKtx[ktxKey].map(([name, count]) => (
+                            <div key={name} className="flex items-center justify-between rounded-lg bg-gray-900/60 px-2.5 py-1">
+                              <span className="text-xs text-gray-300 truncate mr-1">{name}</span>
+                              <span className="text-xs font-bold text-amber-400 font-tabular">{count}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
+
+          {/* ── 6. Heatmap Room Grid ── */}
+          <div className="bg-[#1F2937] rounded-2xl border border-gray-700/60 shadow-xl p-5 sm:p-6 transition-all duration-200 hover:border-gray-600/80">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+                  <LayoutGrid size={20} />
+                </div>
+                <div>
+                  <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">Sơ Đồ Phòng Trực Quan (Heatmap)</h2>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {selectedKTX !== 'all' ? selectedKTX : 'Toàn bộ Ký Túc Xá'} · Nhấp hoặc rê chuột vào ô phòng để xem danh sách
+                  </p>
+                </div>
+              </div>
+
+              {!isEmpty && allBuildings.length > 0 && (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <button
+                    onClick={() => setSelectedBuilding(null)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                      selectedBuilding === null
+                        ? 'bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-500/20'
+                        : 'bg-gray-800 text-gray-300 border-gray-700 hover:bg-gray-750'
+                    }`}
+                  >
+                    Tất cả dãy
+                  </button>
+                  {allBuildings.map(b => (
+                    <button
+                      key={b}
+                      onClick={() => setSelectedBuilding(b)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                        selectedBuilding === b
+                          ? 'bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-500/20'
+                          : 'bg-gray-800 text-gray-300 border-gray-700 hover:bg-gray-750'
+                      }`}
+                    >
+                      {b}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Heatmap Legend */}
+            <div className="flex flex-wrap items-center gap-3 pb-4 mb-4 border-b border-gray-700/60">
+              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Chú thích trạng thái:</span>
+              {[
+                { label: 'Còn trống', dot: 'bg-emerald-400', badge: 'bg-emerald-950/50 border-emerald-500/40 text-emerald-300' },
+                { label: 'Đầy 100%', dot: 'bg-amber-400', badge: 'bg-amber-950/50 border-amber-500/40 text-amber-300' },
+                { label: 'Quá tải (>10)', dot: 'bg-rose-400', badge: 'bg-rose-950/50 border-rose-500/40 text-rose-300' },
+                { label: 'Phòng trống (0)', dot: 'bg-gray-400', badge: 'bg-gray-800 border-gray-700 text-gray-400' },
+              ].map(leg => (
+                <div key={leg.label} className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium ${leg.badge}`}>
+                  <span className={`w-2 h-2 rounded-full ${leg.dot}`} />
+                  <span>{leg.label}</span>
+                </div>
+              ))}
+            </div>
+
+            {isEmpty && (
+              <div className="rounded-2xl border-2 border-dashed border-gray-700 bg-gray-800/30 p-10 flex flex-col items-center justify-center text-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
+                  <FileSpreadsheet size={28} className="text-blue-400" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white mb-1">Chưa có dữ liệu phòng KTX</h3>
+                  <p className="text-sm text-gray-400 max-w-md">
+                    Vui lòng bấm <span className="font-semibold text-blue-400">&quot;Import Excel&quot;</span> để tải danh sách công nhân vào hệ thống.
+                  </p>
+                </div>
+                <button
+                  onClick={() => router.push('/worker-management')}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-colors shadow-lg shadow-blue-500/25"
+                >
+                  <FileSpreadsheet size={16} />
+                  Đến trang Quản Lý Công Nhân
+                </button>
+              </div>
+            )}
+
+            {loading && (
+              <div className="flex items-center justify-center py-16">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                  <p className="text-sm text-gray-400">Đang đồng bộ dữ liệu phòng từ Supabase...</p>
+                </div>
+              </div>
+            )}
+
+            {/* Heatmap Grid */}
+            {!isEmpty && !loading && ktxListForGrid.length > 0 && (
+              <div className="space-y-6">
+                {ktxListForGrid.map(ktx => {
+                  const ktxWorkers = workers.filter(w => w.ktx === ktx);
+                  const ktxBuildings = getUniqueBuildings(ktxWorkers).filter(b => !selectedBuilding || b === selectedBuilding);
+                  if (ktxBuildings.length === 0) return null;
+                  return (
+                    <div key={ktx} className="p-4 rounded-xl bg-gray-850/50 border border-gray-800/80">
+                      {selectedKTX === 'all' && (
+                        <div className="flex items-center gap-2.5 mb-3.5">
+                          <span className={`text-xs font-bold px-3 py-1 rounded-lg border ${
+                            ktx === 'KTX 1'
+                              ? 'bg-blue-500/20 text-blue-300 border-blue-500/30'
+                              : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                          }`}>
+                            {ktx}
+                          </span>
+                          <span className="text-xs text-gray-400 font-medium font-tabular">
+                            {ktxWorkers.length} công nhân · {ktxBuildings.length} dãy
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex flex-wrap gap-6">
+                        {ktxBuildings.map(building => {
+                          const buildingWorkers = ktxWorkers.filter(w => w.day === building);
+                          const rooms = getUniqueRooms(ktxWorkers, building);
+                          const totalCap = rooms.length * ROOM_CAPACITY;
+                          const occupancyPct = totalCap > 0 ? buildingWorkers.length / totalCap : 0;
+                          const barColor = occupancyPct > 1 ? 'bg-rose-500' : occupancyPct >= 1 ? 'bg-amber-400' : occupancyPct >= 0.5 ? 'bg-emerald-400' : 'bg-blue-400';
+                          return (
+                            <div key={building} className="flex-1 min-w-[260px]">
+                              <BlockTitle
+                                ktx={ktx}
+                                building={building}
+                                assignments={blockAssignments}
+                                buildingWorkerCount={buildingWorkers.length}
+                                totalCap={totalCap}
+                                occupancyPct={occupancyPct}
+                                barColor={barColor}
+                              />
+                              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
+                                {rooms.map(room => {
+                                  const roomWorkers = buildingWorkers.filter(w => w.phongSo === room);
+                                  const roomKey = `${ktx}||${building}||${room}`;
+                                  const unitName = roomUnitMap[roomKey];
+                                  return (
+                                    <HeatmapRoomCell
+                                      key={`${ktx}-${building}-${room}`}
+                                      room={room}
+                                      count={roomWorkers.length}
+                                      capacity={ROOM_CAPACITY}
+                                      ktx={ktx}
+                                      building={building}
+                                      workers={roomWorkers.map(w => ({ hoVaTen: w.hoVaTen, maNV: w.maNV }))}
+                                      onClickRoom={handleRoomClick}
+                                      unitName={unitName}
+                                    />
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* ── 7. Charts + Recent Entries Feed ── */}
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            <div className="xl:col-span-2">
+              <DashboardCharts />
+            </div>
+            <div className="xl:col-span-1">
+              <RecentEntriesFeed />
+            </div>
+          </div>
+
+        </div>
+
+        {/* Room Drawer Modal */}
+        {drawerRoom && (
+          <RoomDrawer
+            ktx={drawerRoom.ktx}
+            building={drawerRoom.building}
+            room={drawerRoom.room}
+            workers={drawerWorkers}
+            onClose={() => setDrawerRoom(null)}
+          />
         )}
 
-        {/* ── KPI Grid — 4 on desktop, 2 on tablet, 1 on mobile ── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-5">
-          <KPICard
-            label="Công Nhân"
-            value={kpiWorkers.toLocaleString('vi-VN')}
-            sub={selectedKTX !== 'all'
-              ? `${selectedKTX} · ${kpiBuildings} dãy`
-              : `${totalKTXAll} ký túc xá · ${kpiBuildings} dãy`}
-            icon={Users}
-            color="bg-primary"
+        {/* Quick Add Modal */}
+        {showQuickAdd && (
+          <WorkerFormModal
+            worker={null}
+            allWorkers={workers}
+            onSave={async (w) => {
+              try {
+                await addWorker(w);
+              } catch (err) {
+                console.error('Quick-add worker error:', err);
+              }
+              setShowQuickAdd(false);
+            }}
+            onClose={() => setShowQuickAdd(false)}
           />
-          <KPICard
-            label="Số Dãy / Số Phòng"
-            value={`${kpiBuildings} dãy / ${kpiRooms} phòng`}
-            sub={`Sức chứa: ${kpiCapacity} chỗ`}
-            icon={LayoutGrid}
-            color="bg-blue-500"
-          />
-          <KPICard
-            label="Tỷ Lệ Lấp Đầy"
-            value={`${kpiFillRate}%`}
-            sub={`${kpiWithRoom}/${kpiCapacity} chỗ đã dùng`}
-            icon={Percent}
-            color="bg-emerald-500"
-            extraRows={
-              <div className="mt-2 space-y-1">
-                <div className="flex items-center justify-between rounded-lg bg-emerald-50 border border-emerald-100 px-2 py-1">
-                  <span className="text-xs text-emerald-700 font-medium">Chỗ trống (toàn KTX)</span>
-                  <span className="text-sm font-bold text-emerald-700 font-tabular">{kpiVacant}</span>
-                </div>
-                <KtxOccupancyBreakdown
-                  items={ktxOccupancy}
-                  selectedKtx={selectedKTX}
-                  onSelectKtx={(ktx) => { setSelectedKTX(ktx); setSelectedBuilding(null); }}
-                />
-              </div>
-            }
-          />
-          <KPICard
-            label="Thiếu Dữ Liệu"
-            value={missingData}
-            sub="Click để gán phòng ngay"
-            icon={AlertCircle}
-            color="bg-red-500"
-            alert={missingData > 0}
-            onClick={handleMissingDataClick}
-            badge={missingData > 0 ? 'Nhấn để xem' : undefined}
-          />
-        </div>
-
-        {/* ── Detailed statistics ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-          {/* Gender Stats */}
-          <div className="rounded-xl border border-border bg-white p-4 shadow-sm">
-            <div className="flex items-center gap-2 mb-3">
-              <VenusAndMars size={17} className="text-primary" />
-              <h2 className="text-sm font-semibold text-foreground">Thống kê giới tính</h2>
-            </div>
-            {/* Overall totals */}
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              <div className="rounded-lg bg-blue-50 border border-blue-100 p-3">
-                <p className="text-xs text-blue-600 font-medium">Nam (Toàn KTX)</p>
-                <p className="text-2xl font-bold text-blue-700 font-tabular">{genderStats.male}</p>
-              </div>
-              <div className="rounded-lg bg-pink-50 border border-pink-100 p-3">
-                <p className="text-xs text-pink-600 font-medium">Nữ (Toàn KTX)</p>
-                <p className="text-2xl font-bold text-pink-700 font-tabular">{genderStats.female}</p>
-              </div>
-            </div>
-            {/* Per-KTX breakdown */}
-            {Object.keys(genderByKtx).sort().length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Chi tiết theo KTX</p>
-                {Object.keys(genderByKtx).sort().map(ktxKey => (
-                  <div key={ktxKey} className="rounded-lg border border-border bg-muted/30 px-3 py-2">
-                    <p className="text-xs font-semibold text-foreground mb-1.5">{ktxKey}</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="flex items-center justify-between rounded bg-blue-50 px-2 py-1">
-                        <span className="text-xs text-blue-600 font-medium">Nam</span>
-                        <span className="text-sm font-bold text-blue-700 font-tabular">{genderByKtx[ktxKey].male}</span>
-                      </div>
-                      <div className="flex items-center justify-between rounded bg-pink-50 px-2 py-1">
-                        <span className="text-xs text-pink-600 font-medium">Nữ</span>
-                        <span className="text-sm font-bold text-pink-700 font-tabular">{genderByKtx[ktxKey].female}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Contractor/Unit Stats */}
-          <div className="rounded-xl border border-border bg-white p-4 shadow-sm">
-            <div className="flex items-center gap-2 mb-3">
-              <HardHat size={17} className="text-orange-500" />
-              <h2 className="text-sm font-semibold text-foreground">Đơn vị / Nhà thầu</h2>
-            </div>
-            {/* Overall totals */}
-            <div className="mb-4">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Tổng chung</p>
-              <div className="grid grid-cols-2 gap-2">
-                {contractorStats.length > 0 ? contractorStats.map(([name, count]) => (
-                  <div key={name} className="flex items-center justify-between rounded-lg bg-orange-50 border border-orange-100 px-3 py-2">
-                    <span className="text-xs text-orange-800 truncate mr-2">{name}</span>
-                    <span className="text-sm font-bold text-orange-700 font-tabular">{count}</span>
-                  </div>
-                )) : <p className="text-xs text-muted-foreground col-span-2">Chưa có dữ liệu</p>}
-              </div>
-            </div>
-            {/* Per-KTX breakdown */}
-            {Object.keys(contractorByKtx).sort().length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Chi tiết theo KTX</p>
-                {Object.keys(contractorByKtx).sort().map(ktxKey => (
-                  <div key={ktxKey} className="rounded-lg border border-border bg-muted/30 px-3 py-2">
-                    <p className="text-xs font-semibold text-foreground mb-1.5">{ktxKey}</p>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      {contractorByKtx[ktxKey].map(([name, count]) => (
-                        <div key={name} className="flex items-center justify-between rounded bg-orange-50 px-2 py-1">
-                          <span className="text-xs text-orange-800 truncate mr-1">{name}</span>
-                          <span className="text-xs font-bold text-orange-700 font-tabular">{count}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* ── Operational Alerts ── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-          <AlertCard
-            icon={XCircle}
-            label="Phòng Trống (0 người)"
-            value={`${Array.from(roomWorkerMap.values()).filter(v => v === 0).length} phòng`}
-            color="bg-gray-500"
-            onClick={handleEmptyRoomsClick}
-          />
-          <AlertCard
-            icon={AlertTriangle}
-            label="Phòng Quá Tải"
-            value={`${overloadedRooms} phòng`}
-            color={overloadedRooms > 0 ? 'bg-red-500' : 'bg-gray-400'}
-          />
-          <AlertCard
-            icon={TrendingUp}
-            label="Vào Hôm Nay"
-            value={`+${todayStats.entered} người`}
-            color="bg-green-500"
-          />
-          <AlertCard
-            icon={TrendingDown}
-            label="Ra Hôm Nay"
-            value={`-${todayStats.left} người`}
-            color="bg-amber-500"
-          />
-        </div>
-
-        {/* ── Heatmap Room Grid ── */}
-        <div className="bg-white rounded-xl border border-border shadow-sm p-5 mb-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-            <div>
-              <h2 className="text-base font-semibold text-foreground">Sơ Đồ Phòng (Heatmap)</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {selectedKTX !== 'all' ? selectedKTX : 'Tất cả KTX'} · Hover/Click ô phòng để xem danh sách công nhân
-              </p>
-            </div>
-            {!isEmpty && allBuildings.length > 0 && (
-              <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  onClick={() => setSelectedBuilding(null)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${selectedBuilding === null ? 'bg-primary text-primary-foreground border-primary' : 'bg-muted text-muted-foreground border-border hover:bg-secondary'}`}
-                >
-                  Tất cả dãy
-                </button>
-                {allBuildings.map(b => (
-                  <button
-                    key={b}
-                    onClick={() => setSelectedBuilding(b)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${selectedBuilding === b ? 'bg-primary text-primary-foreground border-primary' : 'bg-muted text-muted-foreground border-border hover:bg-secondary'}`}
-                  >
-                    {b}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Heatmap Legend */}
-          <div className="flex flex-wrap gap-4 mb-4">
-            {[
-              { label: 'Còn trống', bg: 'bg-green-200', border: 'border-green-400' },
-              { label: 'Đầy 100%', bg: 'bg-yellow-200', border: 'border-yellow-400' },
-              { label: 'Quá tải', bg: 'bg-red-200', border: 'border-red-400' },
-              { label: 'Trống 0 người', bg: 'bg-gray-200', border: 'border-gray-400' },
-            ].map(leg => (
-              <div key={leg.label} className="flex items-center gap-1.5">
-                <span className={`w-4 h-4 rounded border ${leg.bg} ${leg.border}`} />
-                <span className="text-xs text-muted-foreground">{leg.label}</span>
-              </div>
-            ))}
-          </div>
-
-          {isEmpty && (
-            <div className="rounded-2xl border-2 border-dashed border-primary/30 bg-primary/5 p-10 flex flex-col items-center justify-center text-center gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
-                <FileSpreadsheet size={28} className="text-primary" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-foreground mb-1">Chưa có dữ liệu phòng</h3>
-                <p className="text-sm text-muted-foreground max-w-md">
-                  Vui lòng bấm <span className="font-semibold text-primary">&quot;Import Excel&quot;</span> hoặc thêm công nhân mới.
-                </p>
-              </div>
-              <button
-                onClick={() => router.push('/worker-management')}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors"
-              >
-                <FileSpreadsheet size={16} />
-                Đến trang Quản Lý Công Nhân
-              </button>
-            </div>
-          )}
-
-          {loading && (
-            <div className="flex items-center justify-center py-16">
-              <div className="flex flex-col items-center gap-3">
-                <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                <p className="text-sm text-muted-foreground">Đang tải dữ liệu từ Supabase...</p>
-              </div>
-            </div>
-          )}
-
-          {/* Heatmap Grid */}
-          {!isEmpty && !loading && ktxListForGrid.length > 0 && (
-            <>
-              {ktxListForGrid.map(ktx => {
-                // ktxWorkers: workers scoped to this KTX only
-                const ktxWorkers = workers.filter(w => w.ktx === ktx);
-                const ktxBuildings = getUniqueBuildings(ktxWorkers).filter(b => !selectedBuilding || b === selectedBuilding);
-                if (ktxBuildings.length === 0) return null;
-                return (
-                  <div key={ktx} className="mb-6 last:mb-0">
-                    {selectedKTX === 'all' && (
-                      <div className="flex items-center gap-2 mb-3">
-                        <span className={`text-sm font-bold px-3 py-1 rounded-full ${ktx === 'KTX 1' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>{ktx}</span>
-                        <span className="text-xs text-muted-foreground">{ktxWorkers.length} công nhân · {ktxBuildings.length} dãy</span>
-                      </div>
-                    )}
-                    <div className="flex flex-wrap gap-6">
-                      {ktxBuildings.map(building => {
-                        // buildingWorkers: scoped to ktx + building — used for BOTH tooltip and modal
-                        const buildingWorkers = ktxWorkers.filter(w => w.day === building);
-                        const rooms = getUniqueRooms(ktxWorkers, building);
-                        const totalCap = rooms.length * ROOM_CAPACITY;
-                        const occupancyPct = totalCap > 0 ? buildingWorkers.length / totalCap : 0;
-                        const barColor = occupancyPct > 1 ? 'bg-red-400' : occupancyPct >= 1 ? 'bg-yellow-400' : occupancyPct >= 0.5 ? 'bg-green-400' : 'bg-blue-400';
-                        return (
-                          <div key={building} className="flex-1 min-w-[260px]">
-                            <BlockTitle
-                              ktx={ktx}
-                              building={building}
-                              assignments={blockAssignments}
-                              buildingWorkerCount={buildingWorkers.length}
-                              totalCap={totalCap}
-                              occupancyPct={occupancyPct}
-                              barColor={barColor}
-                            />
-                            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
-                              {rooms.map(room => {
-                                // roomWorkers: scoped to ktx + building + room — same list for tooltip and modal
-                                const roomWorkers = buildingWorkers.filter(w => w.phongSo === room);
-                                const roomKey = `${ktx}||${building}||${room}`;
-                                const unitName = roomUnitMap[roomKey];
-                                return (
-                                  <HeatmapRoomCell
-                                    key={`${ktx}-${building}-${room}`}
-                                    room={room}
-                                    count={roomWorkers.length}
-                                    capacity={ROOM_CAPACITY}
-                                    ktx={ktx}
-                                    building={building}
-                                    workers={roomWorkers.map(w => ({ hoVaTen: w.hoVaTen, maNV: w.maNV }))}
-                                    onClickRoom={handleRoomClick}
-                                    unitName={unitName}
-                                  />
-                                );
-                              })}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </>
-          )}
-
-          {!isEmpty && !loading && ktxListForGrid.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-12 text-center gap-2">
-              <LayoutGrid size={32} className="text-muted-foreground" />
-              <p className="text-sm font-semibold text-foreground">Không có dữ liệu cho KTX đã chọn</p>
-              <p className="text-xs text-muted-foreground">Thử chọn &quot;Tất cả KTX&quot; hoặc KTX khác</p>
-            </div>
-          )}
-        </div>
-
-        {/* ── Charts + Recent ── */}
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          <div className="xl:col-span-2">
-            <DashboardCharts />
-          </div>
-          <div className="xl:col-span-1">
-            <RecentEntriesFeed />
-          </div>
-        </div>
+        )}
       </div>
-
-      {/* Room Drawer */}
-      {drawerRoom && (
-        <RoomDrawer
-          ktx={drawerRoom.ktx}
-          building={drawerRoom.building}
-          room={drawerRoom.room}
-          workers={drawerWorkers}
-          onClose={() => setDrawerRoom(null)}
-        />
-      )}
-      {showQuickAdd && (
-        <WorkerFormModal
-          worker={null}
-          allWorkers={workers}
-          onSave={async (w) => {
-            try {
-              await addWorker(w);
-            } catch (err) {
-              console.error('Quick-add worker error:', err);
-            }
-            setShowQuickAdd(false);
-          }}
-          onClose={() => setShowQuickAdd(false)}
-        />
-      )}
     </AppLayout>
   );
 }

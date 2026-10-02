@@ -164,45 +164,46 @@ export default function RoomDrawer({ ktx, building, buildingRaw, room, workers, 
   return (
     <>
       {/* Backdrop */}
-      <div className="fixed inset-0 z-40 bg-black/30" onClick={onClose} />
+      <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       {/* Drawer */}
-      <div className="fixed right-0 top-0 h-full z-50 w-full max-w-md bg-card shadow-2xl flex flex-col animate-slide-in-right">
+      <div className="fixed right-0 top-0 h-full z-50 w-full max-w-md bg-[#1F2937] border-l border-gray-700/80 text-white shadow-2xl flex flex-col animate-slide-in-right">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-primary/5">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-700/80 bg-gray-900/60">
           <div>
-            <h2 className="text-base font-bold text-foreground">
+            <h2 className="text-base font-bold text-white flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-blue-400" />
               {building} — Phòng {room}
             </h2>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {workers.length} công nhân
+            <p className="text-xs text-gray-400 mt-0.5 font-tabular">
+              {workers.length} công nhân đang lưu trú
             </p>
           </div>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted transition-colors">
-            <X size={16} />
+          <button onClick={onClose} className="p-2 rounded-xl text-gray-400 hover:text-white hover:bg-gray-800 transition-colors">
+            <X size={18} />
           </button>
         </div>
 
         {/* Room Note section */}
         {isAdmin && (
-          <div className="px-5 py-3 border-b border-border bg-amber-50/50">
+          <div className="px-5 py-3 border-b border-gray-700/80 bg-amber-950/20">
             <div className="flex items-center gap-2 mb-2">
-              <FileText size={13} className="text-amber-500 flex-shrink-0" />
-              <span className="text-xs font-semibold text-amber-700">Ghi chú phòng</span>
-              {loadingNote && <span className="text-[10px] text-amber-400 ml-auto">Đang tải...</span>}
+              <FileText size={13} className="text-amber-400 flex-shrink-0" />
+              <span className="text-xs font-semibold text-amber-300">Ghi chú phòng</span>
+              {loadingNote && <span className="text-[10px] text-amber-400/70 ml-auto">Đang tải...</span>}
             </div>
             <textarea
               value={noteInput}
               onChange={e => setNoteInput(e.target.value)}
               placeholder="Điền thông tin tự do: loại đơn vị, chú thích đặc biệt, tên phòng..."
               rows={3}
-              className="w-full text-xs border border-amber-300 rounded px-2.5 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-amber-400 disabled:opacity-50 resize-none"
+              className="w-full text-xs border border-gray-700 rounded-xl px-3 py-2 bg-gray-900/80 text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-400 disabled:opacity-50 resize-none"
               disabled={savingNote || loadingNote}
             />
-            <div className="flex items-center justify-between mt-1.5">
+            <div className="flex items-center justify-between mt-2">
               <div>
-                {noteError && <p className="text-xs text-red-500">{noteError}</p>}
+                {noteError && <p className="text-xs text-rose-400">{noteError}</p>}
                 {noteSuccess && (
-                  <p className="text-xs text-green-600 font-semibold flex items-center gap-1">
+                  <p className="text-xs text-emerald-400 font-semibold flex items-center gap-1">
                     <span>✓</span> Đã lưu ghi chú thành công!
                   </p>
                 )}
@@ -210,7 +211,7 @@ export default function RoomDrawer({ ktx, building, buildingRaw, room, workers, 
               <button
                 onClick={handleSaveRoomNote}
                 disabled={savingNote || loadingNote}
-                className="flex-shrink-0 px-3 py-1.5 rounded bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition-colors disabled:opacity-50"
+                className="flex-shrink-0 px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition-colors disabled:opacity-50 shadow-md shadow-amber-500/20"
               >
                 {savingNote ? 'Đang lưu...' : 'Lưu ghi chú'}
               </button>
@@ -219,66 +220,70 @@ export default function RoomDrawer({ ktx, building, buildingRaw, room, workers, 
         )}
 
         {/* Legend */}
-        <div className="flex items-center gap-4 px-5 py-2 border-b border-border bg-muted/30 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500" />Đủ hồ sơ</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500" />Thiếu CCCD/SĐT</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-yellow-500" />Chưa phân phòng</span>
+        <div className="flex items-center gap-4 px-5 py-2.5 border-b border-gray-700/60 bg-gray-900/40 text-xs text-gray-400">
+          <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400" />Đủ hồ sơ</span>
+          <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-rose-400" />Thiếu CCCD/SĐT</span>
+          <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-400" />Chưa phân phòng</span>
         </div>
 
         {/* Worker list */}
         <div className="flex-1 overflow-y-auto scrollbar-thin">
           {workers.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center p-8">
-              <Users size={40} className="text-muted-foreground mb-3" />
-              <p className="text-sm font-semibold text-foreground">Phòng trống</p>
-              <p className="text-xs text-muted-foreground mt-1">Chưa có công nhân nào trong phòng này</p>
+              <div className="w-14 h-14 rounded-2xl bg-gray-800 border border-gray-700 flex items-center justify-center mb-3">
+                <Users size={28} className="text-gray-500" />
+              </div>
+              <p className="text-sm font-bold text-white">Phòng trống</p>
+              <p className="text-xs text-gray-400 mt-1">Chưa có công nhân nào được xếp vào phòng này</p>
             </div>
           ) : (
-            <div className="divide-y divide-border">
+            <div className="divide-y divide-gray-700/50">
               {workers.map((w, idx) => {
                 const soNgay = calcSoNgay(w.ngayVaoKTX, w.ngayRaKTX);
                 return (
-                  <div key={w.id} className="px-5 py-3 hover:bg-muted/30 transition-colors">
+                  <div key={w.id} className="px-5 py-3.5 hover:bg-gray-750/70 transition-colors">
                     <div className="flex items-start gap-3">
                       <div className="flex items-center gap-2 flex-shrink-0 mt-0.5">
-                        <span className="text-xs text-muted-foreground w-5 text-right">{idx + 1}</span>
+                        <span className="text-xs text-gray-500 w-5 text-right font-tabular">{idx + 1}</span>
                         <StatusDot worker={w} />
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold">
+                        <div className="w-8 h-8 rounded-lg bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400 text-xs font-bold">
                           {w.hoVaTen.split(' ').pop()?.charAt(0) ?? '?'}
                         </div>
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
-                          <p className="text-sm font-semibold text-foreground truncate">{w.hoVaTen}</p>
+                          <p className="text-sm font-bold text-white truncate">{w.hoVaTen}</p>
                           {w.tieuDoan && (
-                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-primary/10 text-primary flex-shrink-0">TD {w.tieuDoan}</span>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 flex-shrink-0">
+                              TD {w.tieuDoan}
+                            </span>
                           )}
                         </div>
-                        <p className="text-xs text-muted-foreground">{w.maNV || 'Chưa có mã'}</p>
-                        <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
+                        <p className="text-xs text-gray-400 font-tabular">{w.maNV ? `#${w.maNV}` : 'Chưa có mã NV'}</p>
+                        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs">
                           {w.soDienThoai && (
-                            <span className="flex items-center gap-1 text-xs text-foreground">
-                              <Phone size={10} className="text-muted-foreground" />{w.soDienThoai}
+                            <span className="flex items-center gap-1 text-gray-300 font-tabular">
+                              <Phone size={11} className="text-gray-400" />{w.soDienThoai}
                             </span>
                           )}
                           {w.cccd && (
-                            <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <CreditCard size={10} />{w.cccd.slice(0,3)}****{w.cccd.slice(-3)}
+                            <span className="flex items-center gap-1 text-gray-400 font-tabular">
+                              <CreditCard size={11} />{w.cccd.slice(0,3)}****{w.cccd.slice(-3)}
                             </span>
                           )}
                           {w.hoKhauTinh && (
-                            <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <MapPin size={10} />{w.hoKhauTinh}
+                            <span className="flex items-center gap-1 text-gray-400">
+                              <MapPin size={11} />{w.hoKhauTinh}
                             </span>
                           )}
                           {soNgay !== null && (
-                            <span className="flex items-center gap-1 text-xs text-foreground font-semibold">
-                              <Calendar size={10} className="text-muted-foreground" />{soNgay} ngày
+                            <span className="flex items-center gap-1 text-emerald-400 font-semibold font-tabular">
+                              <Calendar size={11} className="text-emerald-500" />{soNgay} ngày
                             </span>
                           )}
                         </div>
                         {w.toTruong && (
-                          <p className="text-xs text-muted-foreground mt-1">Tổ trưởng: {w.toTruong}</p>
+                          <p className="text-xs text-gray-400 mt-1">Tổ trưởng: {w.toTruong}</p>
                         )}
                       </div>
                     </div>
