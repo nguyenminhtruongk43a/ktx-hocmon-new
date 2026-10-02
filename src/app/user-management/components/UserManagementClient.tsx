@@ -367,15 +367,15 @@ export default function UserManagementClient() {
                 ) : (
                   filteredProfiles.map((profile, idx) => (
                     <tr key={profile.id} className={`border-b border-border last:border-0 hover:bg-muted/20 transition-colors ${idx % 2 === 0 ? '' : 'bg-muted/10'}`}>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2.5">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ${profile.role === 'admin' ? 'bg-red-500' : 'bg-blue-500'}`}>
+                      <td className="px-4 py-3 whitespace-nowrap min-w-[200px]">
+                        <div className="flex items-center gap-2.5 flex-nowrap whitespace-nowrap">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 ${profile.role === 'admin' ? 'bg-red-500' : 'bg-blue-500'}`}>
                             {(profile.full_name || profile.email).charAt(0).toUpperCase()}
                           </div>
-                          <span className="font-medium text-foreground">
+                          <span className="font-medium text-foreground whitespace-nowrap">
                             {profile.full_name || '—'}
                             {profile.id === currentUser?.id && (
-                              <span className="ml-1.5 text-xs text-muted-foreground">(bạn)</span>
+                              <span className="ml-1.5 text-xs text-muted-foreground whitespace-nowrap">(bạn)</span>
                             )}
                           </span>
                         </div>

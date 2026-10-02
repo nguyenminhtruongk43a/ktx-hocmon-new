@@ -252,33 +252,33 @@ export default function RoomDrawer({ ktx, building, buildingRaw, room, workers, 
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
-                          <p className="text-sm font-bold text-white truncate">{w.hoVaTen}</p>
+                          <p className="text-sm font-bold text-white whitespace-nowrap truncate">{w.hoVaTen}</p>
                           {w.tieuDoan && (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 flex-shrink-0">
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 whitespace-nowrap shrink-0">
                               TD {w.tieuDoan}
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-gray-400 font-tabular">{w.maNV ? `#${w.maNV}` : 'Chưa có mã NV'}</p>
+                        <p className="text-xs text-gray-400 font-tabular whitespace-nowrap truncate">{w.maNV ? `#${w.maNV}` : 'Chưa có mã NV'}</p>
                         <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs">
                           {w.soDienThoai && (
-                            <span className="flex items-center gap-1 text-gray-300 font-tabular">
-                              <Phone size={11} className="text-gray-400" />{w.soDienThoai}
+                            <span className="flex items-center gap-1 text-gray-300 font-tabular whitespace-nowrap">
+                              <Phone size={11} className="text-gray-400 shrink-0" />{w.soDienThoai}
                             </span>
                           )}
                           {w.cccd && (
-                            <span className="flex items-center gap-1 text-gray-400 font-tabular">
-                              <CreditCard size={11} />{w.cccd.slice(0,3)}****{w.cccd.slice(-3)}
+                            <span className="flex items-center gap-1 text-gray-400 font-tabular whitespace-nowrap">
+                              <CreditCard size={11} className="shrink-0" />{w.cccd.slice(0,3)}****{w.cccd.slice(-3)}
                             </span>
                           )}
                           {w.hoKhauTinh && (
-                            <span className="flex items-center gap-1 text-gray-400">
-                              <MapPin size={11} />{w.hoKhauTinh}
+                            <span className="flex items-center gap-1 text-gray-400 whitespace-nowrap">
+                              <MapPin size={11} className="shrink-0" />{w.hoKhauTinh}
                             </span>
                           )}
                           {soNgay !== null && (
-                            <span className="flex items-center gap-1 text-emerald-400 font-semibold font-tabular">
-                              <Calendar size={11} className="text-emerald-500" />{soNgay} ngày
+                            <span className="flex items-center gap-1 text-emerald-400 font-semibold font-tabular whitespace-nowrap">
+                              <Calendar size={11} className="text-emerald-500 shrink-0" />{soNgay} ngày
                             </span>
                           )}
                         </div>

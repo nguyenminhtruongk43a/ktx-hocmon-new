@@ -75,8 +75,8 @@ export default function Sidebar() {
   if (!currentUser) return null;
 
   const displayName = currentUser.name || currentUser.email || 'Người dùng';
-  const roleLabel = currentUser.role === 'admin' ? 'Quản trị viên' : 'Nhân viên';
-  const avatarColor = currentUser.role === 'admin' ? 'bg-red-500' : 'bg-blue-500';
+  const roleLabel = currentUser.role === 'admin' ? 'Quản trị viên' : 'Chuyên viên';
+  const avatarColor = currentUser.role === 'admin' ? 'bg-gradient-to-tr from-rose-600 to-red-500' : 'bg-gradient-to-tr from-blue-600 to-indigo-600';
   const avatarInitial = displayName.charAt(0).toUpperCase();
 
   const NavLink = ({ item, isMobile = false }: { item: NavItem; isMobile?: boolean }) => {
@@ -89,18 +89,18 @@ export default function Sidebar() {
         <Link
           href={item.href}
           onClick={() => setMobileOpen(false)}
-          className={`flex items-center gap-3 px-3.5 py-3 rounded-xl transition-all ${
+          className={`flex items-center gap-3.5 px-4 py-3.5 rounded-xl transition-colors duration-100 ${
             isActive
-              ? 'bg-primary text-white font-semibold shadow-sm'
-              : 'text-foreground hover:bg-muted hover:text-primary'
+              ? 'bg-blue-600/20 text-white font-bold border border-blue-500/40 shadow-sm'
+              : 'text-gray-300 hover:bg-gray-800 hover:text-white'
           }`}
         >
-          <IconComponent size={20} className={isActive ? 'text-white' : 'text-muted-foreground'} />
+          <IconComponent size={20} className={isActive ? 'text-blue-400' : 'text-gray-400'} />
           <span className="text-sm flex-1">{item.label}</span>
           {badge !== undefined && badge > 0 && (
             <span
-              className={`text-xs rounded-full px-2 py-0.5 font-semibold ${
-                isActive ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'
+              className={`text-xs rounded-full px-2 py-0.5 font-bold font-tabular ${
+                isActive ? 'bg-blue-500 text-white' : 'bg-gray-800 text-gray-300 border border-gray-700'
               }`}
             >
               {badge}
@@ -114,17 +114,21 @@ export default function Sidebar() {
       <Link
         href={item.href}
         title={collapsed ? item.label : undefined}
-        className={`nav-item relative ${isActive ? 'nav-item-active' : ''}`}
+        className={`flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-semibold transition-colors duration-100 relative ${
+          isActive
+            ? 'bg-blue-600/15 text-blue-400 font-bold border border-blue-500/35 shadow-sm shadow-blue-500/10'
+            : 'text-gray-400 hover:text-white hover:bg-gray-800/70 border border-transparent'
+        }`}
       >
-        <IconComponent size={18} className={isActive ? 'text-primary' : 'text-muted-foreground'} />
-        {!collapsed && <span className="truncate">{item.label}</span>}
+        <IconComponent size={18} className={isActive ? 'text-blue-400' : 'text-gray-400'} />
+        {!collapsed && <span className="truncate flex-1">{item.label}</span>}
         {!collapsed && badge !== undefined && badge > 0 && (
-          <span className="ml-auto text-xs bg-primary text-primary-foreground rounded-full px-1.5 py-0.5 font-tabular font-semibold">
+          <span className="text-[11px] bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded-full px-2 py-0.5 font-tabular font-bold">
             {badge}
           </span>
         )}
         {collapsed && badge !== undefined && badge > 0 && (
-          <span className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-primary" />
+          <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-blue-500" />
         )}
       </Link>
     );
@@ -132,104 +136,124 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* ── Desktop Sidebar ── */}
-      <aside className={`hidden lg:flex flex-col bg-card border-r border-border h-screen sticky top-0 sidebar-transition overflow-hidden ${collapsed ? 'w-16' : 'w-64'}`}>
-        {/* Logo */}
-        <div className={`flex items-center border-b border-border px-3 py-4 ${collapsed ? 'justify-center' : 'gap-3'}`}>
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center flex-shrink-0 shadow-sm">
-            <Building2 size={16} className="text-primary-foreground" />
+      {/* ── Desktop Sidebar (Spacious Enterprise Executive Layout) ── */}
+      <aside className={`hidden lg:flex flex-col bg-[#111827] border-r border-gray-800/80 h-screen sticky top-0 overflow-hidden shadow-2xl transition-[width] duration-150 ease-out z-30 ${collapsed ? 'w-16' : 'w-64'}`}>
+        {/* Brand Header */}
+        <div className={`flex items-center border-b border-gray-800/80 px-4 py-4.5 ${collapsed ? 'justify-center' : 'gap-3'}`}>
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 p-0.5 flex items-center justify-center flex-shrink-0 shadow-md shadow-blue-500/20">
+            <div className="w-full h-full bg-gray-900 rounded-[10px] flex items-center justify-center">
+              <Building2 size={19} className="text-blue-400" />
+            </div>
           </div>
           {!collapsed && (
             <div className="min-w-0">
-              <span className="font-bold text-sm text-foreground tracking-tight block leading-tight">KÝ TÚC XÁ</span>
-              <span className="text-xs text-muted-foreground font-medium tracking-wider">HÓC MÔN</span>
+              <span className="font-extrabold text-sm text-white tracking-tight block leading-tight">KÝ TÚC XÁ</span>
+              <span className="text-[11px] text-gray-400 font-semibold tracking-wider">HÓC MÔN</span>
             </div>
           )}
         </div>
 
-        {/* Nav */}
-        <nav className="flex-1 px-2 py-4 flex flex-col gap-0.5 overflow-y-auto scrollbar-thin">
+        {/* Navigation List */}
+        <nav className="flex-1 px-3 py-4 flex flex-col gap-1.5 overflow-y-auto scrollbar-thin">
           {!collapsed && (
-            <p className="px-3 mb-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-widest">Chính</p>
+            <p className="px-3 pt-1 pb-1.5 text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+              CHỨC NĂNG CHÍNH
+            </p>
           )}
           {mainItems.map(item => <NavLink key={item.id} item={item} />)}
 
           {adminItems.length > 0 && (
             <>
               {!collapsed && (
-                <p className="px-3 mt-4 mb-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-widest">Quản trị</p>
+                <p className="px-3 pt-4 pb-1.5 text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+                  QUẢN TRỊ HỆ THỐNG
+                </p>
               )}
-              {collapsed && <div className="my-2 border-t border-border mx-2" />}
+              {collapsed && <div className="my-2 border-t border-gray-800 mx-1" />}
               {adminItems.map(item => <NavLink key={item.id} item={item} />)}
             </>
           )}
 
-          {/* Reload */}
-          <div className={`mt-3 ${collapsed ? 'px-1' : 'px-1'}`}>
-            {!collapsed && <p className="px-2 mb-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-widest">Công cụ</p>}
+          {/* Data Sync Tool */}
+          <div className="mt-4 pt-3 border-t border-gray-800/80">
+            {!collapsed && <p className="px-3 mb-1.5 text-[10px] font-bold text-gray-500 uppercase tracking-widest">TIỆN ÍCH</p>}
             <button
               onClick={refreshWorkers}
               disabled={refreshing}
-              title="Tải lại dữ liệu"
-              className={`w-full nav-item gap-2 ${refreshing ? 'opacity-60 cursor-not-allowed' : 'hover:bg-muted'}`}
+              title="Đồng bộ lại toàn bộ dữ liệu"
+              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-gray-400 hover:text-white hover:bg-gray-800/70 transition-colors duration-100 ${
+                refreshing ? 'opacity-60 cursor-not-allowed' : ''
+              }`}
             >
-              <RefreshCw size={18} className={`text-muted-foreground flex-shrink-0 ${refreshing ? 'animate-spin' : ''}`} />
-              {!collapsed && <span className="truncate text-sm text-muted-foreground">{refreshing ? 'Đang tải...' : 'Tải lại dữ liệu'}</span>}
+              <RefreshCw size={16} className={`text-gray-400 flex-shrink-0 ${refreshing ? 'animate-spin text-blue-400' : ''}`} />
+              {!collapsed && <span className="truncate">{refreshing ? 'Đang đồng bộ...' : 'Đồng bộ dữ liệu'}</span>}
             </button>
           </div>
         </nav>
 
-        {/* User + collapse */}
-        <div className="border-t border-border">
+        {/* User Card + Collapse Toggle */}
+        <div className="border-t border-gray-800/80 p-3 bg-gray-900/50">
           {!collapsed && (
-            <div className="w-full px-3 py-3 flex items-center gap-2">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ${avatarColor}`}>
+            <div className="w-full p-2.5 rounded-xl bg-gray-800/60 border border-gray-700/60 flex items-center gap-3 mb-2 shadow-sm">
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold flex-shrink-0 shadow-sm ${avatarColor}`}>
                 {avatarInitial}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-foreground truncate">{displayName}</p>
-                <p className="text-xs text-muted-foreground truncate">{roleLabel}</p>
+                <p className="text-xs font-bold text-white truncate">{displayName}</p>
+                <p className="text-[11px] text-gray-400 truncate">{roleLabel}</p>
               </div>
-              <button className="btn-ghost p-1.5 rounded-lg hover:text-red-500 transition-colors" title="Đăng xuất" onClick={handleLogout}>
+              <button
+                className="p-1.5 rounded-lg text-gray-400 hover:text-rose-400 hover:bg-gray-800 transition-colors duration-100"
+                title="Đăng xuất"
+                onClick={handleLogout}
+              >
+                <LogOut size={15} />
+              </button>
+            </div>
+          )}
+
+          {collapsed && (
+            <div className="flex flex-col items-center py-1 gap-1.5 mb-1.5">
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold shadow-sm ${avatarColor}`}>
+                {avatarInitial}
+              </div>
+              <button
+                onClick={handleLogout}
+                className="p-1.5 rounded-lg text-gray-400 hover:text-rose-400 hover:bg-gray-800 transition-colors duration-100"
+                title="Đăng xuất"
+              >
                 <LogOut size={14} />
               </button>
             </div>
           )}
-          {collapsed && (
-            <div className="flex flex-col items-center py-2 gap-1">
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold ${avatarColor}`}>{avatarInitial}</div>
-              <button onClick={handleLogout} className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-red-500" title="Đăng xuất">
-                <LogOut size={13} />
-              </button>
-            </div>
-          )}
+
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className="w-full flex items-center justify-center gap-2 py-3 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors border-t border-border"
+            className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold text-gray-400 hover:text-white hover:bg-gray-800/70 transition-colors duration-100"
           >
-            {collapsed ? <ChevronRight size={16} /> : <><ChevronLeft size={16} /><span>Thu gọn</span></>}
+            {collapsed ? <ChevronRight size={16} /> : <><ChevronLeft size={16} /><span>Thu gọn menu</span></>}
           </button>
         </div>
       </aside>
 
-      {/* ── Mobile Top Bar (Header with Hamburger ☰) ── */}
-      <header className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-card/95 backdrop-blur-md border-b border-border flex items-center justify-between px-3.5 h-14 shadow-sm">
+      {/* ── Mobile Top Bar (Responsive Header with Hamburger ☰) ── */}
+      <header className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-[#111827]/95 backdrop-blur-md border-b border-gray-800 flex items-center justify-between px-3.5 h-14 shadow-lg w-full max-w-full">
         <div className="flex items-center gap-2.5">
           <button
             onClick={() => setMobileOpen(true)}
-            className="p-2 -ml-1 rounded-lg text-foreground hover:bg-muted active:scale-95 transition-all focus:outline-none focus:ring-2 focus:ring-primary/40"
+            className="p-2 -ml-1 rounded-xl text-gray-300 hover:text-white hover:bg-gray-800 transition-colors duration-100 focus:outline-none"
             aria-label="Mở menu điều hướng (Hamburger Menu)"
             title="Mở menu (☰)"
           >
-            <Menu size={22} className="text-foreground" />
+            <Menu size={22} className="text-white" />
           </button>
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center flex-shrink-0 shadow-sm">
-              <Building2 size={15} className="text-primary-foreground" />
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center flex-shrink-0 shadow-sm">
+              <Building2 size={15} className="text-white" />
             </div>
             <div>
-              <span className="font-bold text-xs sm:text-sm text-foreground tracking-tight block leading-tight">KÝ TÚC XÁ</span>
-              <span className="text-[10px] text-muted-foreground font-medium tracking-wider">HÓC MÔN</span>
+              <span className="font-extrabold text-xs sm:text-sm text-white tracking-tight block leading-tight">KÝ TÚC XÁ</span>
+              <span className="text-[10px] text-gray-400 font-semibold tracking-wider">HÓC MÔN</span>
             </div>
           </div>
         </div>
@@ -238,43 +262,43 @@ export default function Sidebar() {
           <button
             onClick={refreshWorkers}
             disabled={refreshing}
-            className="p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-50"
+            className="p-2 rounded-xl text-gray-400 hover:text-white hover:bg-gray-800 transition-colors duration-100 disabled:opacity-50"
             title="Tải lại dữ liệu"
           >
-            <RefreshCw size={17} className={refreshing ? 'animate-spin text-primary' : ''} />
+            <RefreshCw size={17} className={refreshing ? 'animate-spin text-blue-400' : ''} />
           </button>
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-sm ${avatarColor}`}>
+          <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold shadow-sm ${avatarColor}`}>
             {avatarInitial}
           </div>
         </div>
       </header>
 
-      {/* ── Mobile Slide-Over Drawer (Trượt ra dạng popup đè lên màn hình) ── */}
+      {/* ── Mobile Slide-Over Drawer ── */}
       {mobileOpen && (
         <div className="lg:hidden fixed inset-0 z-50 overflow-hidden">
-          {/* Backdrop overlay (Bấm ra ngoài thì ẩn đi) */}
+          {/* Backdrop */}
           <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm transition-opacity duration-150"
             onClick={() => setMobileOpen(false)}
             aria-hidden="true"
           />
 
-          {/* Drawer container (Trượt từ trái sang) */}
-          <div className="fixed inset-y-0 left-0 w-80 max-w-[85vw] bg-card border-r border-border shadow-2xl flex flex-col z-50 animate-in slide-in-from-left duration-250 ease-out">
-            {/* Drawer Header with Close Button (✕) */}
-            <div className="flex items-center justify-between px-4 py-4 border-b border-border bg-muted/20">
+          {/* Drawer container */}
+          <div className="fixed inset-y-0 left-0 w-80 max-w-[85vw] bg-[#111827] border-r border-gray-800 shadow-2xl flex flex-col z-50">
+            {/* Drawer Header */}
+            <div className="flex items-center justify-between px-4 py-4 border-b border-gray-800 bg-gray-900/60">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center flex-shrink-0 shadow-sm">
-                  <Building2 size={18} className="text-primary-foreground" />
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center flex-shrink-0 shadow-sm">
+                  <Building2 size={18} className="text-white" />
                 </div>
                 <div>
-                  <span className="font-bold text-sm text-foreground tracking-tight block leading-tight">KÝ TÚC XÁ</span>
-                  <span className="text-[11px] text-muted-foreground font-medium tracking-wider">HÓC MÔN</span>
+                  <span className="font-extrabold text-sm text-white tracking-tight block leading-tight">KÝ TÚC XÁ</span>
+                  <span className="text-[11px] text-gray-400 font-semibold tracking-wider">HÓC MÔN</span>
                 </div>
               </div>
               <button
                 onClick={() => setMobileOpen(false)}
-                className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted active:scale-95 transition-all"
+                className="p-2 rounded-xl text-gray-400 hover:text-white hover:bg-gray-800 transition-colors duration-100"
                 aria-label="Đóng menu"
                 title="Đóng menu (✕)"
               >
@@ -283,8 +307,8 @@ export default function Sidebar() {
             </div>
 
             {/* Drawer Navigation Links */}
-            <div className="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-thin">
-              <p className="px-3 pb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
+            <div className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto scrollbar-thin">
+              <p className="px-3 pb-1 text-[10px] font-bold text-gray-500 uppercase tracking-widest">
                 Chức năng chính
               </p>
               {mainItems.map(item => (
@@ -293,7 +317,7 @@ export default function Sidebar() {
 
               {adminItems.length > 0 && (
                 <>
-                  <p className="px-3 pt-4 pb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
+                  <p className="px-3 pt-4 pb-1 text-[10px] font-bold text-gray-500 uppercase tracking-widest">
                     Quản trị hệ thống
                   </p>
                   {adminItems.map(item => (
@@ -302,32 +326,32 @@ export default function Sidebar() {
                 </>
               )}
 
-              <div className="pt-4 border-t border-border mt-3 space-y-1">
+              <div className="pt-4 border-t border-gray-800 mt-3 space-y-1">
                 <button
                   onClick={() => { refreshWorkers(); setMobileOpen(false); }}
                   disabled={refreshing}
-                  className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-60 text-sm"
+                  className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-gray-300 hover:bg-gray-800 hover:text-white transition-colors duration-100 disabled:opacity-60 text-sm font-semibold"
                 >
-                  <RefreshCw size={18} className={refreshing ? 'animate-spin text-primary' : ''} />
+                  <RefreshCw size={18} className={refreshing ? 'animate-spin text-blue-400' : ''} />
                   <span>{refreshing ? 'Đang đồng bộ...' : 'Đồng bộ dữ liệu'}</span>
                 </button>
               </div>
             </div>
 
-            {/* Drawer Footer with User Info & Logout */}
-            <div className="p-3 border-t border-border bg-muted/30">
-              <div className="px-3 py-2.5 flex items-center gap-3 bg-card border border-border/80 rounded-xl mb-2 shadow-xs">
-                <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0 shadow-xs ${avatarColor}`}>
+            {/* Drawer Footer */}
+            <div className="p-3 border-t border-gray-800 bg-gray-900/60">
+              <div className="px-3 py-2.5 flex items-center gap-3 bg-gray-800/80 border border-gray-700 rounded-xl mb-2">
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-white text-sm font-bold flex-shrink-0 ${avatarColor}`}>
                   {avatarInitial}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-foreground truncate">{displayName}</p>
-                  <p className="text-xs text-muted-foreground truncate">{roleLabel}</p>
+                  <p className="text-sm font-bold text-white truncate">{displayName}</p>
+                  <p className="text-xs text-gray-400 truncate">{roleLabel}</p>
                 </div>
               </div>
               <button
                 onClick={handleLogout}
-                className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-red-600 bg-red-50 hover:bg-red-100 dark:bg-red-950/30 dark:hover:bg-red-950/50 transition-colors text-sm font-semibold"
+                className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/25 transition-colors duration-100 text-sm font-bold"
               >
                 <LogOut size={16} />
                 <span>Đăng xuất tài khoản</span>

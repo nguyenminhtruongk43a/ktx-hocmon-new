@@ -288,7 +288,7 @@ export default function RoomOccupancyGrid() {
                     return (
                       <div
                         key={`room-${group.key}-${room}`}
-                        className={`border rounded-lg p-3 cursor-pointer hover:shadow-md transition-all hover:scale-105 ${roomClass}`}
+                        className={`border rounded-lg p-3 cursor-pointer hover:shadow-md transition-colors duration-100 ${roomClass}`}
                         onClick={() => {
                           if (!group.building) return; // guard: skip if building is empty
                           setDrawerRoom({ ktx: group.ktx, building: group.building, room });

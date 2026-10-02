@@ -47,16 +47,16 @@ export default function RecentEntriesFeed() {
               key={w?.id}
               className="flex items-start gap-3 p-3 rounded-xl bg-gray-800/60 border border-gray-700/40 hover:bg-gray-700/60 hover:border-blue-500/40 transition-all duration-150 group"
             >
-              <div className="w-8 h-8 rounded-lg bg-blue-500/15 border border-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5 text-blue-400 group-hover:scale-105 transition-transform">
+              <div className="w-8 h-8 rounded-lg bg-blue-500/15 border border-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5 text-blue-400 transition-colors duration-100">
                 <UserPlus size={14} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-200 group-hover:text-white transition-colors truncate">
+                <p className="text-sm font-semibold text-gray-200 group-hover:text-white transition-colors whitespace-normal break-words leading-tight">
                   {w?.hoVaTen}
                 </p>
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <MapPin size={11} className="text-gray-400 flex-shrink-0" />
-                  <p className="text-xs text-gray-400 truncate font-tabular">{w?.day} · Phòng {w?.phongSo}</p>
+                  <p className="text-xs text-gray-400 font-tabular whitespace-normal break-words">{w?.day} · Phòng {w?.phongSo}</p>
                 </div>
               </div>
               <div className="text-right flex-shrink-0">

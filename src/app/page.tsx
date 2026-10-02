@@ -6,14 +6,16 @@ import { useWorkers } from '@/context/WorkerContext';
 import { getUniqueKTX, getUniqueBuildings, getUniqueRooms, countUniqueBuildings, aggregateKtxOccupancy, ROOM_CAPACITY } from '@/data/workers';
 import KtxOccupancyBreakdown from './components/KtxOccupancyBreakdown';
 import {
-  Users, LayoutGrid, AlertCircle, FileSpreadsheet, Wifi,
+  Users, LayoutGrid, FileSpreadsheet, Wifi,
   ChevronDown, Search, X, Download, UserPlus, AlertTriangle,
   TrendingUp, TrendingDown, XCircle, GitBranch, HardHat,
-  VenusAndMars, Sparkles, Building, Layers
+  VenusAndMars, Sparkles, Building, Layers, UserCheck
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { createClient } from '@/lib/supabase/client';
 import WorkerFormModal from '@/app/worker-management/components/WorkerFormModal';
+import ExecutiveSpecialistsCard from './components/ExecutiveSpecialistsCard';
+import { SpecialistWithDuty, DEFAULT_SPECIALISTS_DUTY } from '@/lib/dutyRoster';
 
 const RoomDrawer = dynamic(() => import('./components/RoomDrawer'), { ssr: false });
 const DashboardCharts = dynamic(() => import('./components/DashboardCharts'), { ssr: false });
@@ -123,7 +125,7 @@ function ExecutiveKPICard({
   alert,
   onClick,
   badge,
-  extraRows,
+  bottomInfo,
   rightVisual,
 }: {
   label: string;
@@ -136,46 +138,48 @@ function ExecutiveKPICard({
   alert?: boolean;
   onClick?: () => void;
   badge?: string;
-  extraRows?: React.ReactNode;
+  bottomInfo?: React.ReactNode;
   rightVisual?: React.ReactNode;
 }) {
   return (
     <div
-      className={`rounded-2xl border p-5 flex flex-col justify-between shadow-xl transition-all duration-300 relative overflow-hidden group ${
+      className={`rounded-2xl border p-4 sm:p-5 flex flex-col justify-between shadow-xl transition-all duration-300 relative overflow-hidden group w-full ${
         alert
           ? 'bg-rose-950/30 border-rose-500/50 hover:border-rose-400'
           : 'bg-[#1F2937] border-gray-700/60 hover:border-blue-500/40 hover:shadow-blue-500/5'
       } ${onClick ? 'cursor-pointer hover:-translate-y-0.5' : ''}`}
       onClick={onClick}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="space-y-1">
-          <span className="text-xs font-bold uppercase tracking-wider text-gray-400 group-hover:text-gray-300 transition-colors">
-            {label}
-          </span>
-          <div className="flex items-baseline gap-2">
-            <p className={`text-3xl sm:text-4xl font-extrabold font-tabular tracking-tight ${alert ? 'text-rose-400' : 'text-white'}`}>
-              {value}
-            </p>
-            {badge && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                {badge}
-              </span>
-            )}
+      <div>
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-1 min-w-0 flex-1">
+            <span className="text-xs font-bold uppercase tracking-wider text-gray-400 group-hover:text-gray-300 transition-colors block truncate">
+              {label}
+            </span>
+            <div className="flex items-baseline gap-2 flex-wrap">
+              <p className={`text-2xl sm:text-3xl lg:text-4xl font-extrabold font-tabular tracking-tight whitespace-nowrap ${alert ? 'text-rose-400' : 'text-white'}`}>
+                {value}
+              </p>
+              {badge && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 whitespace-nowrap">
+                  {badge}
+                </span>
+              )}
+            </div>
+            {sub && <p className="text-xs text-gray-400 mt-1 line-clamp-2">{sub}</p>}
           </div>
-          {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
-        </div>
 
-        {rightVisual ? (
-          rightVisual
-        ) : (
-          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 border transition-transform duration-300 group-hover:scale-105 ${iconBg} ${iconColor} ${iconBorder}`}>
-            <Icon size={26} />
-          </div>
-        )}
+          {rightVisual ? (
+            rightVisual
+          ) : (
+            <div className={`w-12 h-12 sm:w-13 sm:h-13 rounded-2xl flex items-center justify-center flex-shrink-0 border transition-colors duration-100 ${iconBg} ${iconColor} ${iconBorder}`}>
+              <Icon size={24} className="sm:w-[26px] sm:h-[26px]" />
+            </div>
+          )}
+        </div>
       </div>
 
-      {extraRows && <div className="mt-3 pt-3 border-t border-gray-700/60">{extraRows}</div>}
+      {bottomInfo && <div className="mt-3.5 pt-3 border-t border-gray-700/60">{bottomInfo}</div>}
     </div>
   );
 }
@@ -200,17 +204,17 @@ function ExecutiveAlertCard({
 }) {
   return (
     <div
-      className={`flex items-center gap-3.5 rounded-2xl border px-4 py-3.5 bg-[#1F2937] border-gray-700/60 shadow-lg transition-all duration-200 group ${
+      className={`flex items-center gap-2.5 sm:gap-3.5 rounded-xl sm:rounded-2xl border px-3 sm:px-4 py-2.5 sm:py-3.5 bg-[#1F2937] border-gray-700/60 shadow-lg transition-all duration-150 group w-full min-w-0 ${
         onClick ? 'cursor-pointer hover:border-blue-500/40 hover:bg-gray-800' : 'hover:border-gray-600'
       }`}
       onClick={onClick}
     >
-      <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 border transition-transform duration-200 group-hover:scale-105 ${colorBg} ${colorText} ${colorBorder}`}>
-        <Icon size={20} />
+      <div className={`w-9 h-9 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0 border transition-colors duration-100 ${colorBg} ${colorText} ${colorBorder}`}>
+        <Icon size={18} className="sm:w-5 sm:h-5" />
       </div>
-      <div className="min-w-0">
-        <p className="text-xs text-gray-400 font-medium truncate group-hover:text-gray-300 transition-colors">{label}</p>
-        <p className="text-base sm:text-lg font-bold text-white font-tabular tracking-tight">{value}</p>
+      <div className="min-w-0 flex-1">
+        <p className="text-[11px] sm:text-xs text-gray-400 font-medium truncate whitespace-nowrap group-hover:text-gray-300 transition-colors">{label}</p>
+        <p className="text-sm sm:text-lg font-bold text-white font-tabular tracking-tight whitespace-nowrap truncate">{value}</p>
       </div>
     </div>
   );
@@ -283,8 +287,8 @@ function GlobalSearchBar({ onSelectWorker }: { onSelectWorker: (id: string) => v
                   <span className="text-xs font-bold text-blue-400">{w.hoVaTen?.charAt(0) || '?'}</span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-white truncate">{w.hoVaTen}</p>
-                  <p className="text-xs text-gray-400 truncate">
+                  <p className="text-sm font-semibold text-white whitespace-normal break-words leading-tight">{w.hoVaTen}</p>
+                  <p className="text-xs text-gray-400 whitespace-normal break-words mt-0.5">
                     {[w.maNV ? `#${w.maNV}` : null, w.ktx, w.day && w.phongSo ? `Phòng ${w.phongSo}` : null, w.donVi].filter(Boolean).join(' · ')}
                   </p>
                 </div>
@@ -360,7 +364,7 @@ function HeatmapRoomCell({
   return (
     <div className="relative">
       <div
-        className={`border rounded-xl p-2.5 cursor-pointer transition-all duration-200 hover:scale-[1.04] hover:shadow-lg hover:shadow-black/30 ${bg} ${border}`}
+        className={`border rounded-xl p-2.5 cursor-pointer transition-colors duration-100 hover:border-blue-400 hover:bg-gray-750 hover:shadow-md ${bg} ${border}`}
         onClick={() => onClickRoom(ktx, building, room)}
         onMouseEnter={() => setShowTooltip(true)}
         onMouseLeave={() => setShowTooltip(false)}
@@ -419,7 +423,7 @@ function BlockTitle({
         </span>
       </div>
       <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
-        <div className={`h-full rounded-full transition-all duration-500 ${barColor}`} style={{ width: `${Math.min(occupancyPct * 100, 100)}%` }} />
+        <div className={`h-full rounded-full transition-all duration-300 ${barColor}`} style={{ width: `${Math.min(occupancyPct * 100, 100)}%` }} />
       </div>
     </div>
   );
@@ -440,6 +444,12 @@ export default function OccupancyDashboardPage() {
   const [genderByKtx, setGenderByKtx] = useState<Record<string, { male: number; female: number }>>({});
   const [contractorByKtx, setContractorByKtx] = useState<Record<string, [string, number][]>>({});
   const [blockAssignments, setBlockAssignments] = useState<BlockAssignment[]>([]);
+  const [specialists, setSpecialists] = useState<{ id: string; name: string; email?: string; role: 'admin' | 'staff'; assignedBlocks?: string[] }[]>([
+    { id: 'sp-1', name: 'Nguyễn Minh Trường', role: 'admin', assignedBlocks: ['KTX 1 - Dãy 1', 'KTX 1 - Dãy 2'] },
+    { id: 'sp-2', name: 'Trần Văn Hoàng', role: 'staff', assignedBlocks: ['KTX 1 - Dãy 1', 'KTX 1 - Dãy 2', 'KTX 1 - Dãy 3'] },
+    { id: 'sp-3', name: 'Lê Thị Thu Thảo', role: 'staff', assignedBlocks: ['KTX 1 - Dãy 4', 'KTX 1 - Dãy 5', 'KTX 1 - Dãy 6'] },
+  ]);
+  const [dutyRoster, setDutyRoster] = useState<SpecialistWithDuty[]>(DEFAULT_SPECIALISTS_DUTY);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [roomUnitMap, setRoomUnitMap] = useState<Record<string, string>>({});
 
@@ -456,24 +466,35 @@ export default function OccupancyDashboardPage() {
 
   const allBuildings = useMemo(() => getUniqueBuildings(filteredWorkers), [filteredWorkers]);
 
-  // ── Load block assignments from profiles ──────────────────────────────────
+  // ── Load block assignments & specialists from profiles ───────────────────
   useEffect(() => {
     const supabase = createClient();
     supabase
       .from('profiles')
-      .select('full_name, assigned_blocks')
-      .then(({ data }) => {
-        if (!data) return;
-        const assignments: BlockAssignment[] = [];
-        data.forEach(profile => {
-          const blocks: string[] = Array.isArray(profile.assigned_blocks) ? profile.assigned_blocks : [];
-          blocks.forEach(block => {
-            if (block && profile.full_name) {
-              assignments.push({ blockKey: block, staffName: profile.full_name });
-            }
+      .select('id, full_name, email, role, assigned_blocks')
+      .then(({ data, error }) => {
+        if (!error && data && data.length > 0) {
+          const assignments: BlockAssignment[] = [];
+          const list = data.map((profile, idx) => {
+            const blocks: string[] = Array.isArray(profile.assigned_blocks) ? profile.assigned_blocks : [];
+            blocks.forEach(block => {
+              if (block && profile.full_name) {
+                assignments.push({ blockKey: block, staffName: profile.full_name });
+              }
+            });
+            return {
+              id: profile.id || `sp-${idx}`,
+              name: profile.full_name || profile.email?.split('@')[0] || `Chuyên viên ${idx + 1}`,
+              email: profile.email,
+              role: (profile.role === 'admin' ? 'admin' : 'staff') as 'admin' | 'staff',
+              assignedBlocks: blocks,
+            };
           });
-        });
-        setBlockAssignments(assignments);
+          setBlockAssignments(assignments);
+          if (list.length > 0) {
+            setSpecialists(list);
+          }
+        }
       });
   }, []);
 
@@ -744,29 +765,29 @@ export default function OccupancyDashboardPage() {
   return (
     <AppLayout>
       <div className="min-h-screen bg-[#111827] text-[#E5E7EB] transition-colors duration-200">
-        <div className="px-3 sm:px-6 lg:px-8 xl:px-10 py-5 sm:py-7 max-w-screen-2xl mx-auto space-y-6">
+        <div className="px-2.5 sm:px-6 lg:px-8 xl:px-10 py-3.5 sm:py-7 max-w-screen-2xl mx-auto space-y-4 sm:space-y-6 w-full overflow-hidden">
 
           {/* ── 1. Header & Long Global Search Bar on Top Right ── */}
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-gray-800">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-4 pb-3 sm:pb-4 border-b border-gray-800 w-full">
             {/* Title Section */}
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 p-0.5 shadow-lg shadow-blue-500/20 flex-shrink-0">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 p-0.5 shadow-lg shadow-blue-500/20 shrink-0">
                 <div className="w-full h-full bg-gray-900 rounded-[14px] flex items-center justify-center">
-                  <Building size={22} className="text-blue-400" />
+                  <Building size={20} className="text-blue-400 sm:w-[22px] sm:h-[22px]" />
                 </div>
               </div>
-              <div>
-                <div className="flex items-center gap-2.5 flex-wrap">
-                  <h1 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h1 className="text-lg sm:text-2xl font-extrabold text-white tracking-tight whitespace-nowrap">
                     KÝ TÚC XÁ HÓC MÔN
                   </h1>
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    Điều Hành Thời Gian Thực
+                  <span className="inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-0.5 rounded-full text-[11px] sm:text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 whitespace-nowrap">
+                    <span className="w-1.5 sm:w-2 h-1.5 sm:h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    Thời Gian Thực
                   </span>
                 </div>
-                <p className="text-xs sm:text-sm text-gray-400 mt-0.5">
-                  Bảng thông tin chỉ huy và giám sát lưu trú thông minh
+                <p className="text-xs sm:text-sm text-gray-400 mt-0.5 truncate">
+                  Trung tâm dữ liệu và quản trị vận hành ký túc xá
                 </p>
               </div>
             </div>
@@ -810,10 +831,10 @@ export default function OccupancyDashboardPage() {
           </div>
 
           {/* ── 2. Unified Action Buttons Bar (Gradient Blues) ── */}
-          <div className="flex flex-col sm:flex-row flex-wrap items-center gap-3">
+          <div className="flex flex-col sm:flex-row flex-wrap items-center gap-2.5 sm:gap-3 w-full">
             <button
               onClick={() => setShowQuickAdd(true)}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-sm font-semibold shadow-lg shadow-blue-500/25 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs sm:text-sm font-semibold shadow-md shadow-blue-500/20 transition-colors duration-100 active:opacity-90"
             >
               <UserPlus size={16} />
               <span>Xếp phòng nhanh</span>
@@ -826,7 +847,7 @@ export default function OccupancyDashboardPage() {
 
             <button
               onClick={() => router.push('/worker-management')}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white text-sm font-semibold shadow-lg shadow-blue-500/25 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white text-xs sm:text-sm font-semibold shadow-md shadow-blue-500/20 transition-colors duration-100 active:opacity-90"
             >
               <FileSpreadsheet size={16} />
               <span>Import Excel</span>
@@ -834,23 +855,23 @@ export default function OccupancyDashboardPage() {
 
             <button
               onClick={handleExportReport}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-sm font-semibold shadow-lg shadow-emerald-500/25 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs sm:text-sm font-semibold shadow-md shadow-emerald-500/20 transition-colors duration-100 active:opacity-90"
             >
               <Download size={16} />
               <span>Xuất Báo Cáo Ngày</span>
             </button>
 
             {loading && (
-              <span className="text-xs text-blue-400 font-medium flex items-center gap-1.5 ml-auto">
+              <span className="text-xs text-blue-400 font-medium flex items-center gap-1.5 sm:ml-auto">
                 <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping" />
                 Đang đồng bộ dữ liệu...
               </span>
             )}
           </div>
 
-          {/* ── 3. Four Executive KPI Cards in a Horizontal Row ── */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Card 1: Công nhân */}
+          {/* ── 3. Top 3 Unified Stats Cards (Balanced 3-Column Grid) ── */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
+            {/* Card 1: Tổng Công Nhân */}
             <ExecutiveKPICard
               label="Tổng Công Nhân"
               value={kpiWorkers.toLocaleString('vi-VN')}
@@ -861,9 +882,18 @@ export default function OccupancyDashboardPage() {
               iconBg="bg-blue-500/10"
               iconColor="text-blue-400"
               iconBorder="border-blue-500/25"
+              bottomInfo={
+                <div className="flex items-center justify-between text-xs text-gray-400 font-medium">
+                  <span>Trạng thái hệ thống:</span>
+                  <span className="text-emerald-400 font-semibold flex items-center gap-1.5 font-tabular">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    Đang hoạt động
+                  </span>
+                </div>
+              }
             />
 
-            {/* Card 2: Dãy & Phòng */}
+            {/* Card 2: Quy Mô Cơ Sở */}
             <ExecutiveKPICard
               label="Quy Mô Cơ Sở"
               value={`${kpiBuildings} Dãy / ${kpiRooms} Phòng`}
@@ -872,87 +902,106 @@ export default function OccupancyDashboardPage() {
               iconBg="bg-indigo-500/10"
               iconColor="text-indigo-400"
               iconBorder="border-indigo-500/25"
+              bottomInfo={
+                <div className="flex items-center justify-between text-xs text-gray-400 font-medium">
+                  <span>Định mức thiết kế:</span>
+                  <span className="text-indigo-300 font-semibold font-tabular">
+                    {ROOM_CAPACITY} người / phòng
+                  </span>
+                </div>
+              }
             />
 
             {/* Card 3: Tỷ Lệ Lấp Đầy with Circular Progress Ring */}
             <ExecutiveKPICard
               label="Tỷ Lệ Lấp Đầy"
               value={`${kpiFillRate}%`}
-              sub={`${kpiWithRoom}/${kpiCapacity} chỗ đã sử dụng`}
+              sub={`${kpiWithRoom.toLocaleString('vi-VN')}/${kpiCapacity.toLocaleString('vi-VN')} chỗ sử dụng · Trống ${kpiVacant.toLocaleString('vi-VN')} chỗ`}
               icon={Layers}
               iconBg="bg-emerald-500/10"
               iconColor="text-emerald-400"
               iconBorder="border-emerald-500/25"
               rightVisual={
-                <ProgressRing progress={kpiFillRate} radius={36} stroke={6} color="#10B981" trackColor="#374151">
+                <ProgressRing progress={kpiFillRate} radius={32} stroke={5} color="#10B981" trackColor="#374151">
                   <span className="text-xs font-extrabold text-emerald-400 font-tabular">{kpiFillRate}%</span>
                 </ProgressRing>
               }
-              extraRows={
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1">
-                    <span className="text-xs text-emerald-300 font-medium">Chỗ trống còn lại:</span>
-                    <span className="text-sm font-bold text-emerald-400 font-tabular">{kpiVacant.toLocaleString('vi-VN')}</span>
+              bottomInfo={
+                <div className="w-full space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-400 font-medium">Tiến độ lấp đầy:</span>
+                    <span className="text-emerald-400 font-bold font-tabular">{kpiFillRate}% công suất</span>
                   </div>
-                  <KtxOccupancyBreakdown
-                    items={ktxOccupancy}
-                    selectedKtx={selectedKTX}
-                    onSelectKtx={(ktx) => { setSelectedKTX(ktx); setSelectedBuilding(null); }}
-                  />
+                  <div className="w-full h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        kpiFillRate > 100 ? 'bg-rose-500' : kpiFillRate >= 90 ? 'bg-amber-400' : 'bg-emerald-400'
+                      }`}
+                      style={{ width: `${Math.min(kpiFillRate, 100)}%` }}
+                    />
+                  </div>
                 </div>
               }
             />
-
-            {/* Card 4: Cảnh báo & Thiếu dữ liệu */}
-            <ExecutiveKPICard
-              label="Cần Xử Lý Phòng"
-              value={missingData}
-              sub={missingData > 0 ? "Công nhân chưa được gán phòng" : "Trạng thái tối ưu, không có lỗi"}
-              icon={AlertCircle}
-              iconBg={missingData > 0 ? "bg-rose-500/10" : "bg-emerald-500/10"}
-              iconColor={missingData > 0 ? "text-rose-400" : "text-emerald-400"}
-              iconBorder={missingData > 0 ? "border-rose-500/25" : "border-emerald-500/25"}
-              alert={missingData > 0}
-              onClick={handleMissingDataClick}
-              badge={missingData > 0 ? 'Nhấn để xếp phòng' : undefined}
-            />
           </div>
 
-          {/* ── 4. Operational Alerts Grid ── */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-            <ExecutiveAlertCard
-              icon={XCircle}
-              label="Phòng Trống (0 người)"
-              value={`${Array.from(roomWorkerMap.values()).filter(v => v === 0).length} phòng`}
-              colorBg="bg-gray-800"
-              colorText="text-gray-400"
-              colorBorder="border-gray-700"
-              onClick={handleEmptyRoomsClick}
-            />
-            <ExecutiveAlertCard
-              icon={AlertTriangle}
-              label="Phòng Quá Tải (> 10 người)"
-              value={`${overloadedRooms} phòng`}
-              colorBg={overloadedRooms > 0 ? "bg-rose-500/10" : "bg-gray-800"}
-              colorText={overloadedRooms > 0 ? "text-rose-400" : "text-gray-500"}
-              colorBorder={overloadedRooms > 0 ? "border-rose-500/30" : "border-gray-700"}
-            />
-            <ExecutiveAlertCard
-              icon={TrendingUp}
-              label="Vào Hôm Nay"
-              value={`+${todayStats.entered} công nhân`}
-              colorBg="bg-emerald-500/10"
-              colorText="text-emerald-400"
-              colorBorder="border-emerald-500/30"
-            />
-            <ExecutiveAlertCard
-              icon={TrendingDown}
-              label="Ra Hôm Nay"
-              value={`-${todayStats.left} công nhân`}
-              colorBg="bg-amber-500/10"
-              colorText="text-amber-400"
-              colorBorder="border-amber-500/30"
-            />
+          {/* ── 4. Specialists Duty Card & Operational Alerts (Balanced 2-Column Row) ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 w-full">
+            {/* Left: Specialists Card */}
+            <div className="lg:col-span-1">
+              <ExecutiveSpecialistsCard
+                specialists={specialists}
+                onDutyRosterChange={setDutyRoster}
+              />
+            </div>
+
+            {/* Right: Operational Alerts Grid + KTX Breakdown */}
+            <div className="lg:col-span-2 flex flex-col justify-between gap-3.5">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <ExecutiveAlertCard
+                  icon={XCircle}
+                  label="Phòng Trống (0 người)"
+                  value={`${Array.from(roomWorkerMap.values()).filter(v => v === 0).length} phòng`}
+                  colorBg="bg-gray-800"
+                  colorText="text-gray-400"
+                  colorBorder="border-gray-700"
+                  onClick={handleEmptyRoomsClick}
+                />
+                <ExecutiveAlertCard
+                  icon={AlertTriangle}
+                  label="Phòng Quá Tải (> 10)"
+                  value={`${overloadedRooms} phòng`}
+                  colorBg={overloadedRooms > 0 ? "bg-rose-500/10" : "bg-gray-800"}
+                  colorText={overloadedRooms > 0 ? "text-rose-400" : "text-gray-500"}
+                  colorBorder={overloadedRooms > 0 ? "border-rose-500/30" : "border-gray-700"}
+                />
+                <ExecutiveAlertCard
+                  icon={TrendingUp}
+                  label="Vào Hôm Nay"
+                  value={`+${todayStats.entered} người`}
+                  colorBg="bg-emerald-500/10"
+                  colorText="text-emerald-400"
+                  colorBorder="border-emerald-500/30"
+                />
+                <ExecutiveAlertCard
+                  icon={TrendingDown}
+                  label="Ra Hôm Nay"
+                  value={`-${todayStats.left} người`}
+                  colorBg="bg-amber-500/10"
+                  colorText="text-amber-400"
+                  colorBorder="border-amber-500/30"
+                />
+              </div>
+
+              {/* KTX Occupancy Breakdown Quick Card */}
+              <div className="rounded-2xl border border-gray-700/60 bg-[#1F2937] p-4 sm:p-5 shadow-xl flex-1 flex flex-col justify-between hover:border-blue-500/40 transition-all">
+                <KtxOccupancyBreakdown
+                  items={ktxOccupancy}
+                  selectedKtx={selectedKTX}
+                  onSelectKtx={(ktx) => { setSelectedKTX(ktx); setSelectedBuilding(null); }}
+                />
+              </div>
+            </div>
           </div>
 
           {/* ── 5. Detailed Statistics: Gender & Contractors ── */}
@@ -1172,9 +1221,10 @@ export default function OccupancyDashboardPage() {
                   const ktxBuildings = getUniqueBuildings(ktxWorkers).filter(b => !selectedBuilding || b === selectedBuilding);
                   if (ktxBuildings.length === 0) return null;
                   return (
-                    <div key={ktx} className="p-4 rounded-xl bg-gray-850/50 border border-gray-800/80">
-                      {selectedKTX === 'all' && (
-                        <div className="flex items-center gap-2.5 mb-3.5">
+                    <div key={ktx} className="p-3.5 sm:p-4 rounded-xl bg-gray-850/50 border border-gray-800/80 overflow-x-auto w-full scrollbar-thin">
+                      {/* KTX Title + Dynamic Daily Duty Personnel Info */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-3.5 pb-2.5 border-b border-gray-800">
+                        <div className="flex items-center gap-2.5 flex-wrap">
                           <span className={`text-xs font-bold px-3 py-1 rounded-lg border ${
                             ktx === 'KTX 1'
                               ? 'bg-blue-500/20 text-blue-300 border-blue-500/30'
@@ -1186,8 +1236,41 @@ export default function OccupancyDashboardPage() {
                             {ktxWorkers.length} công nhân · {ktxBuildings.length} dãy
                           </span>
                         </div>
-                      )}
-                      <div className="flex flex-wrap gap-6">
+
+                        {/* Dynamic Specialists on Duty at this KTX today */}
+                        {(() => {
+                          const ktxOnDuty = dutyRoster.filter(s => s.status === 'on_duty' && s.dutyKtx === ktx);
+                          return (
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-[11px] font-semibold text-gray-400 flex items-center gap-1">
+                                <UserCheck size={13} className="text-emerald-400" />
+                                <span>Trực ban hôm nay ({ktx}):</span>
+                              </span>
+                              {ktxOnDuty.length > 0 ? (
+                                ktxOnDuty.map(s => (
+                                  <span
+                                    key={s.id}
+                                    className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                                  >
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                    <span>{s.name}</span>
+                                    {s.role === 'admin' && (
+                                      <span className="text-[9px] px-1 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 font-medium">
+                                        Admin
+                                      </span>
+                                    )}
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="text-[11px] text-gray-500 italic bg-gray-800/80 px-2 py-0.5 rounded border border-gray-700/60">
+                                  Chưa phân công ca trực hôm nay
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </div>
+                      <div className="flex flex-wrap gap-5 sm:gap-6 min-w-0 w-full">
                         {ktxBuildings.map(building => {
                           const buildingWorkers = ktxWorkers.filter(w => w.day === building);
                           const rooms = getUniqueRooms(ktxWorkers, building);
@@ -1195,7 +1278,7 @@ export default function OccupancyDashboardPage() {
                           const occupancyPct = totalCap > 0 ? buildingWorkers.length / totalCap : 0;
                           const barColor = occupancyPct > 1 ? 'bg-rose-500' : occupancyPct >= 1 ? 'bg-amber-400' : occupancyPct >= 0.5 ? 'bg-emerald-400' : 'bg-blue-400';
                           return (
-                            <div key={building} className="flex-1 min-w-[260px]">
+                            <div key={building} className="flex-1 min-w-[230px] max-w-full">
                               <BlockTitle
                                 ktx={ktx}
                                 building={building}

@@ -12,23 +12,26 @@ export default function BulkActionBar({ selectedCount, onDelete, onClear }: Prop
   if (selectedCount === 0) return null;
 
   return (
-    <div className="slide-up mb-3 flex items-center gap-3 bg-primary/5 border border-primary/20 rounded-lg px-4 py-2.5">
-      <span className="text-sm font-semibold text-primary">
+    <div className="slide-up mb-4 flex items-center gap-3 bg-gray-800/95 border border-blue-500/40 rounded-2xl px-4 py-3 shadow-xl backdrop-blur-md">
+      <span className="text-sm font-bold text-blue-400 font-tabular">
         Đã chọn {selectedCount} công nhân
       </span>
       <div className="flex-1" />
       {onDelete && (
         <button
           onClick={onDelete}
-          className="btn-danger text-xs py-1.5 px-3"
+          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all shadow-md shadow-rose-600/25 active:scale-95"
         >
-          <Trash2 size={13} />
-          Xóa {selectedCount} mục
+          <Trash2 size={14} />
+          <span>Xóa {selectedCount} mục đã chọn</span>
         </button>
       )}
-      <button onClick={onClear} className="btn-ghost text-xs py-1.5 px-2">
+      <button
+        onClick={onClear}
+        className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-gray-700/80 hover:bg-gray-700 text-gray-300 hover:text-white text-xs font-semibold transition-colors"
+      >
         <X size={13} />
-        Bỏ chọn
+        <span>Bỏ chọn</span>
       </button>
     </div>
   );

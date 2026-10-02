@@ -49,8 +49,8 @@ export default function KtxOccupancyBreakdown({
                 }`}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="truncate text-xs font-semibold text-gray-200">{item.ktx}</span>
-                  <div className="flex items-center gap-2 font-tabular">
+                  <span className="truncate whitespace-nowrap text-xs font-semibold text-gray-200">{item.ktx}</span>
+                  <div className="flex items-center gap-2 font-tabular whitespace-nowrap shrink-0">
                     <span className={`text-[11px] font-bold ${tone.text}`}>{pct}%</span>
                     <span className="min-w-[2.5rem] text-right text-xs font-bold text-gray-100">
                       {item.vacant.toLocaleString('vi-VN')}
@@ -60,9 +60,9 @@ export default function KtxOccupancyBreakdown({
                 <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-gray-700" aria-hidden="true">
                   <div className={`h-full rounded-full transition-all duration-500 ${tone.bar}`} style={{ width: `${Math.min(pct, 100)}%` }} />
                 </div>
-                <p className="mt-1 text-[11px] text-gray-400 font-tabular flex items-center justify-between">
-                  <span>{`${item.occupied.toLocaleString('vi-VN')}/${item.capacity.toLocaleString('vi-VN')} chỗ · ${item.rooms} phòng`}</span>
-                  {item.overflow > 0 && <span className="font-semibold text-rose-400">{` · vượt ${item.overflow}`}</span>}
+                <p className="mt-1 text-[11px] text-gray-400 font-tabular flex items-center justify-between whitespace-nowrap overflow-hidden text-ellipsis">
+                  <span className="truncate">{`${item.occupied.toLocaleString('vi-VN')}/${item.capacity.toLocaleString('vi-VN')} chỗ · ${item.rooms} phòng`}</span>
+                  {item.overflow > 0 && <span className="font-semibold text-rose-400 shrink-0">{` · vượt ${item.overflow}`}</span>}
                 </p>
               </button>
             </li>

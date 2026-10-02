@@ -8,7 +8,7 @@ import WorkerFormModal from './WorkerFormModal';
 import WorkerDetailModal from './WorkerDetailModal';
 import DeleteConfirmModal from './DeleteConfirmModal';
 import BulkActionBar from './BulkActionBar';
-import { Plus, Download, Upload, X, FileText, AlertCircle, FileCheck, ChevronLeft, ChevronRight, Trash2, Building2, CheckSquare, Filter } from 'lucide-react';
+import { Plus, Download, Upload, X, FileText, AlertCircle, FileCheck, ChevronLeft, ChevronRight, Trash2, Building2, CheckSquare, Filter, Users } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useAuth } from '@/context/AuthContext';
 import { useAudit } from '@/context/AuditContext';
@@ -1270,70 +1270,118 @@ export function WorkerManagementClient() {
 
   if (loading) {
     return (
-      <div className="px-6 lg:px-8 xl:px-10 py-6 max-w-screen-2xl mx-auto">
-        <div className="flex items-center justify-center py-20">
-          <div className="flex flex-col items-center gap-3">
-            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-            <p className="text-sm text-muted-foreground">Đang tải dữ liệu từ Supabase...</p>
-          </div>
-        </div>
+      <div className="min-h-screen bg-[#111827] text-gray-400 p-12 flex flex-col items-center justify-center gap-3">
+        <div className="w-9 h-9 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+        <p className="text-sm font-medium animate-pulse">Đang tải dữ liệu từ Supabase...</p>
       </div>
     );
   }
 
   return (
-    <div className="px-3 sm:px-6 lg:px-8 xl:px-10 py-4 sm:py-6 max-w-screen-2xl mx-auto">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 mb-5 sm:mb-6">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-foreground">Quản Lý Công Nhân</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">{filtered.length} / {workers.length} công nhân</p>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
-          {canDeleteAll && (
-            <>
-              <button
-                onClick={() => setShowBulkDeleteFilter(true)}
-                className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white text-xs sm:text-sm font-semibold transition-colors flex-1 sm:flex-initial"
-              >
-                <Filter size={15} />Xóa theo bộ lọc
-              </button>
-              <button
-                onClick={() => setShowDeleteAll(true)}
-                className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-red-700 hover:bg-red-800 text-white text-xs sm:text-sm font-semibold transition-colors flex-1 sm:flex-initial"
-              >
-                <Trash2 size={15} />Xóa tất cả
-              </button>
-            </>
-          )}
-          {isAdmin && (
-            <button
-              onClick={() => setShowBulkAssignKtx(true)}
-              className="relative flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs sm:text-sm font-semibold transition-colors flex-1 sm:flex-initial"
-            >
-              <Building2 size={15} />Gán KTX
-              {noKtxCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold px-1">
-                  {noKtxCount}
+    <div className="min-h-screen bg-[#111827] text-[#E5E7EB]">
+      <div className="px-3 sm:px-6 lg:px-8 xl:px-10 py-5 sm:py-7 max-w-screen-2xl mx-auto space-y-5">
+        {/* ── Header with Global Subtitle ── */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-gray-800">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 p-0.5 shadow-lg shadow-blue-500/20 flex-shrink-0">
+              <div className="w-full h-full bg-gray-900 rounded-[14px] flex items-center justify-center">
+                <Users size={22} className="text-blue-400" />
+              </div>
+            </div>
+            <div>
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h1 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
+                  KÝ TÚC XÁ HÓC MÔN
+                </h1>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/30">
+                  <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+                  Quản Lý Công Nhân
                 </span>
-              )}
+                <span className="text-xs text-blue-400 font-bold px-3 py-0.5 rounded-full bg-blue-500/15 border border-blue-500/30 font-tabular">
+                  {workers.length.toLocaleString('vi-VN')}
+                </span>
+              </div>
+              <p className="text-xs sm:text-sm text-gray-400 mt-0.5">
+                Trung tâm dữ liệu và quản trị vận hành ký túc xá
+              </p>
+            </div>
+          </div>
+
+          {/* ── Clear Action Button Color-Coding (Red delete, Blue add/edit, Green export) ── */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Đỏ xóa: Xóa bộ lọc / Xóa tất cả */}
+            {canDeleteAll && (
+              <>
+                <button
+                  onClick={() => setShowBulkDeleteFilter(true)}
+                  className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs sm:text-sm font-semibold transition-colors duration-100 shadow-md shadow-rose-600/25 active:opacity-85"
+                >
+                  <Filter size={15} />
+                  <span>Xóa theo bộ lọc</span>
+                </button>
+                <button
+                  onClick={() => setShowDeleteAll(true)}
+                  className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-700 hover:bg-rose-600 text-white text-xs sm:text-sm font-semibold transition-colors duration-100 shadow-md shadow-rose-700/25 active:opacity-85"
+                >
+                  <Trash2 size={15} />
+                  <span>Xóa tất cả</span>
+                </button>
+              </>
+            )}
+
+            {/* Gán KTX */}
+            {isAdmin && (
+              <button
+                onClick={() => setShowBulkAssignKtx(true)}
+                className="relative flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs sm:text-sm font-semibold transition-colors duration-100 shadow-md shadow-amber-600/25 active:opacity-85"
+              >
+                <Building2 size={15} />
+                <span>Gán KTX</span>
+                {noKtxCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-rose-500 text-white text-[10px] font-bold px-1 shadow-sm">
+                    {noKtxCount}
+                  </span>
+                )}
+              </button>
+            )}
+
+            {/* Xanh lá xuất file */}
+            <button
+              onClick={handleExport}
+              className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-semibold transition-colors duration-100 shadow-md shadow-emerald-600/25 active:opacity-85"
+            >
+              <Download size={15} />
+              <span>Xuất Excel</span>
             </button>
-          )}
-          <button onClick={handleExport} className="btn-secondary text-xs sm:text-sm flex-1 sm:flex-initial justify-center">
-            <Download size={15} />Xuất Excel
-          </button>
-          <button onClick={() => setShowTamTruExport(true)} className="btn-secondary text-xs sm:text-sm flex-1 sm:flex-initial justify-center">
-            <FileCheck size={15} />Xuất Tạm Trú
-          </button>
-          <button onClick={() => setShowImport(true)} className="btn-secondary text-xs sm:text-sm flex-1 sm:flex-initial justify-center">
-            <Upload size={15} />Nhập từ Excel
-          </button>
-          {(isAdmin || (currentUser?.assignedBlocks && currentUser.assignedBlocks.length > 0)) && (
-            <button onClick={() => setShowAddModal(true)} className="btn-primary text-xs sm:text-sm flex-1 sm:flex-initial justify-center">
-              <Plus size={15} />Thêm Công Nhân
+            <button
+              onClick={() => setShowTamTruExport(true)}
+              className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs sm:text-sm font-semibold transition-colors duration-100 shadow-md shadow-teal-600/25 active:opacity-85"
+            >
+              <FileCheck size={15} />
+              <span>Xuất Tạm Trú</span>
             </button>
-          )}
+
+            {/* Nhập từ Excel */}
+            <button
+              onClick={() => setShowImport(true)}
+              className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs sm:text-sm font-semibold transition-colors duration-100 shadow-md shadow-cyan-600/25 active:opacity-85"
+            >
+              <Upload size={15} />
+              <span>Nhập từ Excel</span>
+            </button>
+
+            {/* Xanh dương thêm công nhân */}
+            {(isAdmin || (currentUser?.assignedBlocks && currentUser.assignedBlocks.length > 0)) && (
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs sm:text-sm font-semibold transition-colors duration-100 shadow-md shadow-blue-500/25 active:opacity-85"
+              >
+                <Plus size={16} />
+                <span>Thêm Công Nhân</span>
+              </button>
+            )}
+          </div>
         </div>
-      </div>
 
       <WorkerFilters filters={filters} onChange={f => { setFilters(f); setPage(1); }} workers={workers} />
 
@@ -1361,12 +1409,12 @@ export function WorkerManagementClient() {
 
       {/* Pagination */}
       <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-400">
           <span>Hiển thị</span>
-          <select value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setPage(1); }} className="input-field w-16 py-1 text-xs">
+          <select value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setPage(1); }} className="bg-gray-800 border border-gray-700 text-white rounded-lg px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500">
             {[20, 50, 100, 200].map(n => <option key={n} value={n}>{n}</option>)}
           </select>
-          <span>/ {filtered.length} bản ghi</span>
+          <span>bản ghi (Tổng: <strong className="text-white font-tabular">{filtered.length.toLocaleString('vi-VN')}</strong>)</span>
         </div>
         <div className="flex items-center gap-1">
           <button onClick={() => setPage(1)} disabled={page === 1} className="btn-ghost px-2 py-1 text-xs disabled:opacity-40">«</button>
@@ -1391,6 +1439,7 @@ export function WorkerManagementClient() {
       {showBulkAssignKtx && isAdmin && <BulkAssignKtxModal workers={workers} onClose={() => setShowBulkAssignKtx(false)} onAssign={handleBulkAssignKtx} />}
       {showDeleteAll && isAdmin && <DeleteAllConfirmModal onConfirm={handleDeleteAll} onClose={() => setShowDeleteAll(false)} loading={deleteAllLoading} />}
       {showBulkDeleteFilter && isAdmin && <BulkDeleteByFilterModal workers={workers} onClose={() => setShowBulkDeleteFilter(false)} onDelete={handleBulkDeleteByFilter} />}
+      </div>
     </div>
   );
 }

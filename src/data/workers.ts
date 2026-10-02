@@ -12,6 +12,18 @@ export interface Worker {
   ngaySinh?: string;
   queQuan?: string;
   cccd?: string;
+  soCCCD?: string;
+  soDienThoai?: string;
+  giuong?: string;
+  hoKhauTinh?: string;
+  toTruong?: string;
+  sdtToTruong?: string;
+  ngayVaoKTX?: string;
+  ngayRaKTX?: string;
+  ghiChu?: string;
+  khoaTraCuu?: string;
+  avatar?: string;
+  tamTruStatus?: 'registered' | 'unregistered';
 }
 
 // 💥 DÁN DANH SÁCH CÔNG NHÂN THỰC TẾ CỦA BẠN VÀO MẢNG NÀY 💥
@@ -27,6 +39,9 @@ export const WORKERS: Worker[] = [
     phongSo: '101',
     donVi: 'XD',
     gioiTinh: 'Nam',
+    soDienThoai: '0901234567',
+    cccd: '079123456789',
+    tamTruStatus: 'registered',
   },
   {
     id: 'w-002',
@@ -39,6 +54,9 @@ export const WORKERS: Worker[] = [
     phongSo: '101',
     donVi: 'ME',
     gioiTinh: 'Nữ',
+    soDienThoai: '0912345678',
+    cccd: '079987654321',
+    tamTruStatus: 'unregistered',
   },
 ];
 
@@ -116,6 +134,11 @@ export function countUniqueBuildings(workers: Worker[] = WORKERS): number {
   return getUniqueBuildingKeys(workers).length;
 }
 
+export function getUniqueBuildings(workers: Worker[] = WORKERS): string[] {
+  const list = workers || WORKERS;
+  return [...new Set(list.map(w => w.day).filter(Boolean))].sort();
+}
+
 export function getUniqueRooms(workers: Worker[] = WORKERS, day?: string): string[] {
   const list = day ? workers.filter(w => w.day === day) : workers;
   return [...new Set(list.map(w => w.phongSo).filter(Boolean))].sort((a, b) => Number(a) - Number(b));
@@ -133,15 +156,41 @@ export function getworkersByBuilding(day: string): Worker[] {
   return WORKERS.filter(w => w.day === day);
 }
 
-export function getProfileStatus(w: Worker): 'DU' | 'THIEU' {
-  return w.hoVaTen && w.maNV ? 'DU' : 'THIEU';
+export function getProfileStatus(w: Worker): 'full' | 'missing_cccd_sdt' | 'no_room' | 'incomplete' {
+  if (!w.day || !w.phongSo) return 'no_room';
+  if (!w.cccd || !w.soDienThoai) return 'missing_cccd_sdt';
+  if (w.hoVaTen && w.maNV && w.cccd && w.soDienThoai) return 'full';
+  return 'incomplete';
 }
 
-export function calcSoNgay(dateStr?: string): number {
-  if (!dateStr) return 0;
-  const diff = Date.now() - new Date(dateStr).getTime();
+export function calcSoNgay(ngayVao?: string, ngayRa?: string): number {
+  if (!ngayVao) return 0;
+  let start: Date;
+  if (ngayVao.includes('/')) {
+    const parts = ngayVao.split('/');
+    if (parts.length === 3) {
+      start = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+    } else {
+      start = new Date(ngayVao);
+    }
+  } else {
+    start = new Date(ngayVao);
+  }
+  if (isNaN(start.getTime())) return 0;
+
+  let end = new Date();
+  if (ngayRa) {
+    if (ngayRa.includes('/')) {
+      const parts = ngayRa.split('/');
+      if (parts.length === 3) {
+        end = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+      } else {
+        end = new Date(ngayRa);
+      }
+    } else {
+      end = new Date(ngayRa);
+    }
+  }
+  const diff = end.getTime() - start.getTime();
   return Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));
-}export function getUniqueBuildings(workers: Worker[] = WORKERS): string[] {
-  const list = workers || WORKERS;
-  return [...new Set(list.map(w => w.day).filter(Boolean))].sort();
 }
