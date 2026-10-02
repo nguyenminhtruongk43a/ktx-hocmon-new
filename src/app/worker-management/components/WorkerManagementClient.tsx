@@ -768,7 +768,7 @@ function TamTruExportModal({ workers, onClose }: { workers: Worker[]; onClose: (
           <label className="flex items-center gap-3 p-3 rounded-lg border border-border cursor-pointer hover:bg-muted/30">
             <input type="radio" name="tamtru-filter" value="unregistered" checked={filter === 'unregistered'} onChange={() => setFilter('unregistered')} className="accent-primary" />
             <div>
-              <p className="text-sm font-semibold text-foreground">Chỉ "Chưa đăng ký" (theo bộ lọc)</p>
+              <p className="text-sm font-semibold text-foreground">Chỉ &quot;Chưa đăng ký&quot; (theo bộ lọc)</p>
               <p className="text-xs text-muted-foreground">{unregisteredCount} bản ghi</p>
             </div>
           </label>

@@ -195,7 +195,7 @@ function CCCDOCRScanner({ onConfirm, onClose }: {
             <div className="space-y-3">
               <div className="flex items-start gap-2 p-2.5 bg-blue-50 border border-blue-200 rounded-lg">
                 <AlertTriangle size={13} className="text-blue-600 mt-0.5 flex-shrink-0" />
-                <p className="text-xs text-blue-700 font-medium">Kiểm tra và chỉnh sửa dữ liệu. Bắt buộc nhấn "Xác nhận đúng" để áp dụng.</p>
+                <p className="text-xs text-blue-700 font-medium">Kiểm tra và chỉnh sửa dữ liệu. Bắt buộc nhấn &quot;Xác nhận đúng&quot; để áp dụng.</p>
               </div>
               <div className="space-y-2">
                 <div>

@@ -129,13 +129,9 @@ export function WorkerProvider({ children }: { children: React.ReactNode }) {
 
         if (error) {
           console.error('Supabase load error:', error.message);
-          if (
-            error.message?.includes('does not exist') ||
-            error.message?.includes('schema cache') ||
-            error.code === '42P01' ||
-            error.code === 'PGRST116'
-          ) {
-            if (!isRefresh && allRows.length === 0) setWorkers(WORKERS);
+          if (!isRefresh && allRows.length === 0) {
+            setWorkers(WORKERS);
+            setTotalWorkerCount(WORKERS.length);
           }
           break;
         }
@@ -157,6 +153,10 @@ export function WorkerProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (err) {
       console.error('Load workers failed:', err);
+      if (!isRefresh) {
+        setWorkers(WORKERS);
+        setTotalWorkerCount(WORKERS.length);
+      }
     } finally {
       if (isRefresh) setRefreshing(false);
       else setLoading(false);

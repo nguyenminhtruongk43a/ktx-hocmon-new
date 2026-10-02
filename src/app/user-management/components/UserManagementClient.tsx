@@ -76,21 +76,8 @@ export default function UserManagementClient() {
     setToast({ message, type });
   };
 
-  // Route protection
-  if (!isAdmin) {
-    if (typeof window !== 'undefined') {
-      router.replace('/');
-    }
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-        <Shield size={48} className="text-muted-foreground" />
-        <p className="text-lg font-semibold text-foreground">Bạn không có quyền truy cập trang này.</p>
-        <button onClick={() => router.push('/')} className="btn-primary px-4 py-2 rounded-lg text-sm">Về Tổng Quan</button>
-      </div>
-    );
-  }
-
   const loadProfiles = useCallback(async () => {
+    if (!isAdmin) return;
     setLoading(true);
     try {
       const { data: rpcData, error: rpcError } = await supabase.rpc('get_all_profiles');
@@ -117,11 +104,27 @@ export default function UserManagementClient() {
     } finally {
       setLoading(false);
     }
-  }, [supabase]);
+  }, [isAdmin, supabase]);
 
   useEffect(() => {
-    loadProfiles();
-  }, [loadProfiles]);
+    if (isAdmin) {
+      loadProfiles();
+    }
+  }, [isAdmin, loadProfiles]);
+
+  // Route protection
+  if (!isAdmin) {
+    if (typeof window !== 'undefined') {
+      router.replace('/');
+    }
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <Shield size={48} className="text-muted-foreground" />
+        <p className="text-lg font-semibold text-foreground">Bạn không có quyền truy cập trang này.</p>
+        <button onClick={() => router.push('/')} className="btn-primary px-4 py-2 rounded-lg text-sm">Về Tổng Quan</button>
+      </div>
+    );
+  }
 
   const filteredProfiles = profiles.filter(p => {
     if (activeTab === 'all') return true;

@@ -42,25 +42,7 @@ export default function AuditLogClient() {
   const [page, setPage] = useState(1);
   const pageSize = 20;
 
-  // Route protection
-  if (!isAdmin) {
-    if (typeof window !== 'undefined') {
-      router.replace('/');
-    }
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
-            <Activity size={24} className="text-red-500" />
-          </div>
-          <h2 className="text-lg font-bold text-foreground mb-2">Không có quyền truy cập</h2>
-          <p className="text-sm text-muted-foreground">Chỉ Admin mới có thể xem Nhật ký Hệ thống</p>
-        </div>
-      </div>
-    );
-  }
-
-  const uniqueAccounts = [...new Set(logs.map(l => l.account))].sort();
+  const uniqueAccounts = useMemo(() => [...new Set(logs.map(l => l.account))].sort(), [logs]);
 
   const filtered = useMemo(() => {
     const fromDate = parseFilterDate(filterDateFrom, false);
@@ -99,6 +81,24 @@ export default function AuditLogClient() {
     setFilterDateTo('');
     setPage(1);
   };
+
+  // Route protection
+  if (!isAdmin) {
+    if (typeof window !== 'undefined') {
+      router.replace('/');
+    }
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+            <Activity size={24} className="text-red-500" />
+          </div>
+          <h2 className="text-lg font-bold text-foreground mb-2">Không có quyền truy cập</h2>
+          <p className="text-sm text-muted-foreground">Chỉ Admin mới có thể xem Nhật ký Hệ thống</p>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

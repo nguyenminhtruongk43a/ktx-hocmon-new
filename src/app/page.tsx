@@ -893,7 +893,7 @@ export default function OccupancyDashboardPage() {
               <div>
                 <h3 className="text-base font-bold text-foreground mb-1">Chưa có dữ liệu phòng</h3>
                 <p className="text-sm text-muted-foreground max-w-md">
-                  Vui lòng bấm <span className="font-semibold text-primary">"Import Excel"</span> hoặc thêm công nhân mới.
+                  Vui lòng bấm <span className="font-semibold text-primary">&quot;Import Excel&quot;</span> hoặc thêm công nhân mới.
                 </p>
               </div>
               <button
@@ -985,7 +985,7 @@ export default function OccupancyDashboardPage() {
             <div className="flex flex-col items-center justify-center py-12 text-center gap-2">
               <LayoutGrid size={32} className="text-muted-foreground" />
               <p className="text-sm font-semibold text-foreground">Không có dữ liệu cho KTX đã chọn</p>
-              <p className="text-xs text-muted-foreground">Thử chọn "Tất cả KTX" hoặc KTX khác</p>
+              <p className="text-xs text-muted-foreground">Thử chọn &quot;Tất cả KTX&quot; hoặc KTX khác</p>
             </div>
           )}
         </div>
