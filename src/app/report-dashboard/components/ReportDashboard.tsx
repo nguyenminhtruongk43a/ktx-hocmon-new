@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useWorkers } from '@/context/WorkerContext';
 import { Worker, ROOM_CAPACITY, getUniqueBuildings, getUniqueRooms, countUniqueBuildings } from '@/data/workers';
+import { getActiveKtxList } from '@/lib/systemMetrics';
 import { createClient } from '@/lib/supabase/client';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -17,7 +18,7 @@ import {
 // ─── Types ────────────────────────────────────────────────────────────────────
 type GenderFilter = 'all' | 'male' | 'female';
 type UnitFilter = 'all' | 'xd' | 'me' | 'vinalpha' | 'other';
-type KtxFilter = 'all' | 'KTX 1' | 'KTX 2';
+type KtxFilter = string;
 type ActiveTab = 'tong-quan' | 'bien-dong';
 type FluctuationType = 'all' | 'tang' | 'giam' | 'rong';
 type CutoffMode = 'realtime' | '14h';
@@ -80,9 +81,9 @@ function matchesUnit(w: Worker, u: UnitFilter): boolean {
   return true;
 }
 
-function matchesKtx(w: Worker, k: KtxFilter): boolean {
-  if (k === 'all') return true;
-  return w.ktx === k;
+function matchesKtx(w: Worker, k: string): boolean {
+  if (k === 'all' || !k) return true;
+  return (w.ktx ?? '').trim() === k.trim();
 }
 
 function getDefaultDateRange(): { from: string; to: string } {
@@ -146,10 +147,11 @@ export default function ReportDashboard() {
   const [lastFetched, setLastFetched] = useState<string>('');
 
   // ── Unique buildings from workers for filter ──
+  const activeKtxList = useMemo(() => getActiveKtxList(workers), [workers]);
   const allBuildings = useMemo(() => getUniqueBuildings(workers), [workers]);
   const flBuildings = useMemo(() => {
     if (!flFilter.ktx) return allBuildings;
-    return getUniqueBuildings(workers.filter(w => w.ktx === flFilter.ktx));
+    return getUniqueBuildings(workers.filter(w => (w.ktx ?? '').trim() === flFilter.ktx.trim()));
   }, [workers, flFilter.ktx, allBuildings]);
 
   // ── Fetch fluctuation data ──
@@ -254,8 +256,6 @@ export default function ReportDashboard() {
     const me = filtered.filter(w => { const dv = (w.donVi || '').toLowerCase(); return dv.includes('me') || dv.includes('cơ') || dv.includes('co'); }).length;
     const vinalpha = filtered.filter(w => { const dv = (w.donVi || '').toLowerCase(); return dv.includes('vinalpha') || dv.includes('alpha'); }).length;
     const otherUnit = Math.max(0, total - xd - me - vinalpha);
-    const ktx1 = filtered.filter(w => w.ktx === 'KTX 1').length;
-    const ktx2 = filtered.filter(w => w.ktx === 'KTX 2').length;
 
     const buildingCount = countUniqueBuildings(filtered);
     const roomSet = new Set(filtered.map(w => `${w.ktx}||${w.day}||${w.phongSo}`).filter(k => !k.startsWith('||')));
@@ -266,18 +266,52 @@ export default function ReportDashboard() {
     const missingData = filtered.filter(w => !w.day || !w.phongSo).length;
 
     return {
-      total, male, female, xd, me, vinalpha, otherUnit, ktx1, ktx2,
+      total, male, female, xd, me, vinalpha, otherUnit,
       buildingCount, roomCount, capacity, fillRate, workersWithRoom, missingData
     };
   }, [filtered]);
 
+  const ktxBreakdownCounts = useMemo(() => {
+    const map: Record<string, { total: number; male: number; female: number; rooms: number; capacity: number; fillRate: number }> = {};
+    const roomsMap: Record<string, Set<string>> = {};
+
+    activeKtxList.forEach(k => {
+      map[k] = { total: 0, male: 0, female: 0, rooms: 0, capacity: 0, fillRate: 0 };
+      roomsMap[k] = new Set();
+    });
+
+    filtered.forEach(w => {
+      const k = (w.ktx ?? '').trim();
+      if (k && map[k]) {
+        map[k].total++;
+        const g = (w.gioiTinh || '').toLowerCase();
+        if (g.includes('nam')) map[k].male++;
+        else if (g.includes('nữ') || g.includes('nu')) map[k].female++;
+
+        if (w.day && w.phongSo) {
+          roomsMap[k]?.add(`${w.day}||${w.phongSo}`);
+        }
+      }
+    });
+
+    activeKtxList.forEach(k => {
+      const rooms = roomsMap[k]?.size || 0;
+      const capacity = rooms * ROOM_CAPACITY;
+      map[k].rooms = rooms;
+      map[k].capacity = capacity;
+      map[k].fillRate = capacity > 0 ? Math.round((map[k].total / capacity) * 100) : 0;
+    });
+
+    return map;
+  }, [filtered, activeKtxList]);
+
   const buildingList = useMemo(() => {
-    const list = filters.ktx === 'all' ? workers : workers.filter(w => w.ktx === filters.ktx);
+    const list = filters.ktx === 'all' ? workers : workers.filter(w => (w.ktx ?? '').trim() === filters.ktx.trim());
     return getUniqueBuildings(list);
   }, [workers, filters.ktx]);
 
   const roomList = useMemo(() => {
-    const list = filters.ktx === 'all' ? workers : workers.filter(w => w.ktx === filters.ktx);
+    const list = filters.ktx === 'all' ? workers : workers.filter(w => (w.ktx ?? '').trim() === filters.ktx.trim());
     return getUniqueRooms(list, filters.building || undefined);
   }, [workers, filters.ktx, filters.building]);
 
@@ -406,8 +440,9 @@ export default function ReportDashboard() {
                     className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
                   >
                     <option value="all">Tất cả KTX</option>
-                    <option value="KTX 1">KTX 1</option>
-                    <option value="KTX 2">KTX 2</option>
+                    {activeKtxList.map(k => (
+                      <option key={k} value={k}>{k}</option>
+                    ))}
                   </select>
                 </div>
 
@@ -536,20 +571,52 @@ export default function ReportDashboard() {
               </div>
 
               <div className="bg-[#1F2937] rounded-2xl border border-gray-700/60 p-5 shadow-xl">
-                <h4 className="font-bold text-white mb-4 flex items-center gap-2 text-sm">
-                  <Building2 size={18} className="text-emerald-400" /> Phân bổ theo Khu KTX
-                </h4>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-emerald-950/40 border border-emerald-500/30 p-4 rounded-xl">
-                    <span className="text-xs font-bold text-emerald-300 block mb-1">KTX 1</span>
-                    <span className="text-2xl font-extrabold text-emerald-400 font-tabular">{stats.ktx1}</span>
-                    <span className="text-[10px] text-gray-400 block mt-1">công nhân</span>
-                  </div>
-                  <div className="bg-amber-950/40 border border-amber-500/30 p-4 rounded-xl">
-                    <span className="text-xs font-bold text-amber-300 block mb-1">KTX 2</span>
-                    <span className="text-2xl font-extrabold text-amber-400 font-tabular">{stats.ktx2}</span>
-                    <span className="text-[10px] text-gray-400 block mt-1">công nhân</span>
-                  </div>
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="font-bold text-white flex items-center gap-2 text-sm">
+                    <Building2 size={18} className="text-emerald-400" /> Phân bổ theo Khu KTX
+                  </h4>
+                  <span className="text-xs text-gray-400 font-medium font-tabular">
+                    {activeKtxList.length} khu KTX hoạt động
+                  </span>
+                </div>
+                <div className={`grid gap-3 ${activeKtxList.length >= 3 ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-1 sm:grid-cols-2'}`}>
+                  {activeKtxList.map(ktx => {
+                    const data = ktxBreakdownCounts[ktx] || { total: 0, male: 0, female: 0, rooms: 0, fillRate: 0 };
+                    const isSelected = filters.ktx === ktx;
+                    const colorClasses =
+                      ktx === 'KTX 1'
+                        ? { bg: 'bg-blue-950/40 border-blue-500/30', title: 'text-blue-300', num: 'text-blue-400' }
+                        : ktx === 'KTX 2'
+                        ? { bg: 'bg-amber-950/40 border-amber-500/30', title: 'text-amber-300', num: 'text-amber-400' }
+                        : ktx === 'KTX 3'
+                        ? { bg: 'bg-emerald-950/40 border-emerald-500/30', title: 'text-emerald-300', num: 'text-emerald-400' }
+                        : { bg: 'bg-indigo-950/40 border-indigo-500/30', title: 'text-indigo-300', num: 'text-indigo-400' };
+
+                    return (
+                      <div
+                        key={ktx}
+                        onClick={() => set('ktx', isSelected ? 'all' : ktx)}
+                        className={`p-3.5 rounded-xl border transition-all cursor-pointer hover:scale-[1.02] ${colorClasses.bg} ${
+                          isSelected ? 'ring-2 ring-emerald-500 shadow-lg' : ''
+                        }`}
+                        title={`Bấm để lọc theo ${ktx}`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className={`text-xs font-bold ${colorClasses.title}`}>{ktx}</span>
+                          <span className="text-[10px] font-semibold text-gray-400 font-tabular">
+                            {data.rooms} phòng · {data.fillRate}%
+                          </span>
+                        </div>
+                        <span className={`text-2xl font-extrabold ${colorClasses.num} font-tabular`}>
+                          {data.total.toLocaleString('vi-VN')}
+                        </span>
+                        <div className="flex items-center justify-between text-[11px] text-gray-400 mt-1.5 pt-1.5 border-t border-gray-700/50">
+                          <span className="text-blue-300 font-medium">Nam: <strong className="text-white font-tabular">{data.male}</strong></span>
+                          <span className="text-pink-300 font-medium">Nữ: <strong className="text-white font-tabular">{data.female}</strong></span>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -613,8 +680,9 @@ export default function ReportDashboard() {
                     className="bg-gray-800 border border-gray-700 text-gray-100 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
                   >
                     <option value="">Tất cả KTX</option>
-                    <option value="KTX 1">KTX 1</option>
-                    <option value="KTX 2">KTX 2</option>
+                    {activeKtxList.map(k => (
+                      <option key={k} value={k}>{k}</option>
+                    ))}
                   </select>
                 </div>
 

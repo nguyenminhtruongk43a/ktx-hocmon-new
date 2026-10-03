@@ -21,7 +21,7 @@ export interface SpecialistWithDuty {
 
 export const DUTY_STORAGE_KEY = 'ktx_duty_roster_by_specialist_v4';
 
-export const COMMON_KTX_OPTIONS = ['KTX 1', 'KTX 2', 'KTX 3', 'KTX 4', 'KTX 5'];
+export const COMMON_KTX_OPTIONS = ['KTX 1', 'KTX 2', 'KTX 3'];
 
 export const DEFAULT_SPECIALISTS_DUTY: SpecialistWithDuty[] = [
   {

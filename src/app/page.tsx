@@ -16,6 +16,16 @@ import { createClient } from '@/lib/supabase/client';
 import WorkerFormModal from '@/app/worker-management/components/WorkerFormModal';
 import ExecutiveSpecialistsCard from './components/ExecutiveSpecialistsCard';
 import { SpecialistWithDuty, DEFAULT_SPECIALISTS_DUTY } from '@/lib/dutyRoster';
+import {
+  getRoomGenderInfo,
+  loadSavedRoomGenderMap,
+  saveRoomGenderMap,
+  fetchRoomLabelsFromSupabase,
+  syncRoomGenderToSupabase,
+  RoomGenderInfo,
+  normalizeGender,
+} from '@/lib/roomGender';
+import { computeSystemMetrics, getActiveKtxList } from '@/lib/systemMetrics';
 
 const RoomDrawer = dynamic(() => import('./components/RoomDrawer'), { ssr: false });
 const DashboardCharts = dynamic(() => import('./components/DashboardCharts'), { ssr: false });
@@ -311,19 +321,33 @@ function GlobalSearchBar({ onSelectWorker }: { onSelectWorker: (id: string) => v
 function RoomTooltip({
   workers,
   room,
+  genderInfo,
   onClose,
 }: {
-  workers: { hoVaTen: string; maNV: string }[];
+  workers: { hoVaTen: string; maNV: string; gioiTinh?: string }[];
   room: string;
+  genderInfo?: RoomGenderInfo;
   onClose: () => void;
 }) {
   return (
-    <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 bg-gray-900 border border-gray-700 text-white rounded-xl shadow-2xl p-3 text-xs">
+    <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-60 bg-gray-900 border border-gray-700 text-white rounded-xl shadow-2xl p-3 text-xs">
       <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-gray-800">
-        <span className="font-bold text-white flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-blue-400" />
-          Phòng {room}
-        </span>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="font-bold text-white">Phòng {room}</span>
+          {genderInfo && (
+            <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold border inline-flex items-center gap-0.5 ${
+              genderInfo.gender === 'female'
+                ? 'bg-pink-500/25 text-pink-300 border-pink-500/40'
+                : genderInfo.gender === 'male'
+                ? 'bg-blue-500/20 text-blue-300 border-blue-500/30'
+                : 'bg-gray-800 text-gray-400 border-gray-700'
+            }`}>
+              <span>{genderInfo.gender === 'female' ? '♀' : genderInfo.gender === 'male' ? '♂' : '•'}</span>
+              <span>{genderInfo.label}</span>
+              {genderInfo.isCustom && <span className="text-[8px] opacity-75">(Admin)</span>}
+            </span>
+          )}
+        </div>
         <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
           <X size={13} />
         </button>
@@ -332,15 +356,21 @@ function RoomTooltip({
         <p className="text-gray-400 py-1">Phòng trống (0 người)</p>
       ) : (
         <ul className="space-y-1.5 max-h-44 overflow-y-auto scrollbar-thin pr-1">
-          {workers.map((w, i) => (
-            <li key={i} className="flex items-center justify-between gap-1.5">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" />
-                <span className="truncate text-gray-200">{w.hoVaTen}</span>
-              </div>
-              {w.maNV && <span className="text-[10px] text-gray-400 flex-shrink-0 font-tabular">#{w.maNV}</span>}
-            </li>
-          ))}
+          {workers.map((w, i) => {
+            const isF = (w.gioiTinh || '').toLowerCase().includes('nữ') || (w.gioiTinh || '').toLowerCase() === 'nu';
+            return (
+              <li key={i} className="flex items-center justify-between gap-1.5">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isF ? 'bg-pink-400' : 'bg-blue-400'}`} />
+                  <span className="truncate text-gray-200">{w.hoVaTen}</span>
+                  <span className={`text-[9px] px-1 rounded font-bold ${isF ? 'text-pink-300 bg-pink-500/15' : 'text-blue-300 bg-blue-500/15'}`}>
+                    {isF ? 'Nữ' : 'Nam'}
+                  </span>
+                </div>
+                {w.maNV && <span className="text-[10px] text-gray-400 flex-shrink-0 font-tabular">#{w.maNV}</span>}
+              </li>
+            );
+          })}
         </ul>
       )}
       <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
@@ -350,42 +380,196 @@ function RoomTooltip({
 
 // ─── Heatmap Room Cell ─────────────────────────────────────────────────────
 function HeatmapRoomCell({
-  room, count, capacity, ktx, building, workers, onClickRoom, unitName
+  room, count, capacity, ktx, building, workers, onClickRoom, unitName, genderInfo, onQuickAssignGender
 }: {
   room: string; count: number; capacity: number;
   ktx: string; building: string;
-  workers: { hoVaTen: string; maNV: string }[];
+  workers: { hoVaTen: string; maNV: string; gioiTinh?: string }[];
   onClickRoom: (ktx: string, building: string, room: string) => void;
   unitName?: string;
+  genderInfo: RoomGenderInfo;
+  onQuickAssignGender?: (ktx: string, building: string, room: string, gender: 'male' | 'female' | 'auto') => void;
 }) {
   const [showTooltip, setShowTooltip] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const { bg, border, label, dot, textColor } = getRoomHeatColor(count, capacity);
 
+  const isFemaleRoom = genderInfo.gender === 'female';
+  const isMaleRoom = genderInfo.gender === 'male';
+  const isMixedRoom = genderInfo.gender === 'mixed';
+
+  // Close quick menu on click outside
+  useEffect(() => {
+    if (!showMenu) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setShowMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showMenu]);
+
+  const handleGenderTagClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowMenu(prev => !prev);
+  };
+
+  const handleSelectGender = (e: React.MouseEvent, g: 'male' | 'female' | 'auto') => {
+    e.stopPropagation();
+    onQuickAssignGender?.(ktx, building, room, g);
+    setShowMenu(false);
+  };
+
+  const occupancyPercent = capacity > 0 ? Math.round((count / capacity) * 100) : 0;
+
   return (
-    <div className="relative">
+    <div className="relative w-full h-[106px]">
       <div
-        className={`border rounded-xl p-2.5 cursor-pointer transition-colors duration-100 hover:border-blue-400 hover:bg-gray-750 hover:shadow-md ${bg} ${border}`}
+        className={`border rounded-xl p-2.5 sm:p-3 cursor-pointer transition-all duration-150 hover:shadow-lg relative h-full flex flex-col justify-between ${bg} ${
+          isFemaleRoom
+            ? 'border-pink-500/60 hover:border-pink-400 ring-1 ring-pink-500/35 bg-pink-950/25'
+            : isMaleRoom
+            ? 'border-blue-500/50 hover:border-blue-400 ring-1 ring-blue-500/25 bg-blue-950/25'
+            : isMixedRoom
+            ? 'border-amber-500/40 hover:border-amber-400 ring-1 ring-amber-500/20 bg-amber-950/20'
+            : border
+        }`}
         onClick={() => onClickRoom(ktx, building, room)}
         onMouseEnter={() => setShowTooltip(true)}
         onMouseLeave={() => setShowTooltip(false)}
       >
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-xs font-bold text-gray-200">P.{room}</span>
-          <span className={`w-2 h-2 rounded-full ${dot}`} />
+        {/* Hàng 1: Số phòng bên trái, Nhãn Nam/Nữ bên phải */}
+        <div className="flex items-center justify-between gap-1.5 min-w-0">
+          <span className="text-xs sm:text-sm font-black text-white tracking-tight font-tabular">
+            P.{room}
+          </span>
+
+          {/* Nhãn giới tính (Nam / Nữ / Hỗn hợp / Tự động) */}
+          <div className="relative shrink-0">
+            <button
+              type="button"
+              onClick={handleGenderTagClick}
+              title="Nhấp để đổi công năng: Phòng Nam / Phòng Nữ / Tự động"
+              className={`text-[10px] sm:text-[11px] font-bold px-1.5 py-0.5 rounded transition-transform active:scale-95 inline-flex items-center gap-1 shrink-0 shadow-sm leading-none whitespace-nowrap ${
+                isFemaleRoom
+                  ? 'bg-pink-500/25 text-pink-300 border border-pink-500/50 shadow-pink-500/20 hover:bg-pink-500/35'
+                  : isMaleRoom
+                  ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40 hover:bg-blue-500/35'
+                  : isMixedRoom
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/35'
+                  : 'bg-gray-800 text-gray-400 border border-gray-700 hover:bg-gray-750 hover:text-gray-300'
+              }`}
+            >
+              {isFemaleRoom ? (
+                <>
+                  <span className="font-extrabold text-pink-300">♀</span>
+                  <span>Phòng Nữ</span>
+                </>
+              ) : isMaleRoom ? (
+                <>
+                  <span className="font-extrabold text-blue-300">♂</span>
+                  <span>Phòng Nam</span>
+                </>
+              ) : isMixedRoom ? (
+                <span>Hỗn hợp</span>
+              ) : (
+                <>
+                  <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
+                  <span>{genderInfo.isCustom ? 'Gán' : 'Tự động'}</span>
+                </>
+              )}
+            </button>
+
+            {/* Popover đổi nhanh công năng phòng */}
+            {showMenu && (
+              <div
+                ref={menuRef}
+                onClick={e => e.stopPropagation()}
+                className="absolute right-0 top-full mt-1.5 z-40 w-44 rounded-xl bg-gray-900 border border-gray-700 shadow-2xl p-1.5 space-y-1 backdrop-blur-md"
+              >
+                <div className="px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-gray-400 border-b border-gray-800 pb-1 mb-1">
+                  Đổi công năng P.{room}
+                </div>
+                <button
+                  type="button"
+                  onClick={(e) => handleSelectGender(e, 'male')}
+                  className={`w-full text-left px-2 py-1.5 rounded-lg text-xs font-bold flex items-center justify-between transition-colors ${
+                    isMaleRoom ? 'bg-blue-600 text-white shadow-sm' : 'text-blue-300 hover:bg-blue-500/20'
+                  }`}
+                >
+                  <span className="flex items-center gap-1.5">
+                    <span>♂</span>
+                    <span>Phòng Nam</span>
+                  </span>
+                  {isMaleRoom && <span className="text-[10px]">✓</span>}
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => handleSelectGender(e, 'female')}
+                  className={`w-full text-left px-2 py-1.5 rounded-lg text-xs font-bold flex items-center justify-between transition-colors ${
+                    isFemaleRoom ? 'bg-pink-600 text-white shadow-sm' : 'text-pink-300 hover:bg-pink-500/20'
+                  }`}
+                >
+                  <span className="flex items-center gap-1.5">
+                    <span>♀</span>
+                    <span>Phòng Nữ</span>
+                  </span>
+                  {isFemaleRoom && <span className="text-[10px]">✓</span>}
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => handleSelectGender(e, 'auto')}
+                  className="w-full text-left px-2 py-1.5 rounded-lg text-[11px] font-medium text-gray-400 hover:text-white hover:bg-gray-800 transition-colors flex items-center justify-between"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <span>⚡</span>
+                    <span>Tự động</span>
+                  </span>
+                  {!genderInfo.isCustom && <span className="text-[10px]">✓</span>}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
-        <p className="text-xs font-tabular font-bold text-white">{count}/{capacity}</p>
-        <p className={`text-[10px] font-medium mt-0.5 ${textColor}`}>{label}</p>
-        {unitName && (
-          <p
-            className="text-[10px] font-semibold text-blue-300 bg-blue-500/20 border border-blue-500/30 rounded px-1 py-0.5 mt-1 truncate"
-            title={unitName}
-          >
-            {unitName}
-          </p>
-        )}
+
+        {/* Hàng 2: Tỷ lệ số lượng (18/20 · 90%) */}
+        <div className="flex items-baseline justify-between font-tabular my-0.5">
+          <span className="text-xs sm:text-sm font-extrabold text-white tracking-tight">
+            {count}/{capacity}
+          </span>
+          <span className="text-[10px] font-bold text-gray-400">
+            {occupancyPercent}%
+          </span>
+        </div>
+
+        {/* Hàng 3: Trạng thái (Còn trống / Đầy 100% / Quá tải) & Đơn vị thi công */}
+        <div className="flex items-center justify-between gap-1 pt-1 border-t border-gray-700/50 min-w-0">
+          <div className="flex items-center gap-1.5 min-w-0 shrink-0">
+            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dot}`} />
+            <span className={`text-[10px] sm:text-[11px] font-semibold whitespace-nowrap leading-none ${textColor}`}>
+              {label}
+            </span>
+          </div>
+          {unitName && (
+            <span
+              className="text-[9px] font-bold text-sky-300 bg-sky-500/20 border border-sky-500/30 rounded px-1 py-0.2 leading-tight truncate max-w-[65px]"
+              title={`Đơn vị thi công: ${unitName}`}
+            >
+              {unitName}
+            </span>
+          )}
+        </div>
       </div>
-      {showTooltip && (
-        <RoomTooltip workers={workers} room={room} onClose={() => setShowTooltip(false)} />
+
+      {showTooltip && !showMenu && (
+        <RoomTooltip
+          workers={workers}
+          room={room}
+          genderInfo={genderInfo}
+          onClose={() => setShowTooltip(false)}
+        />
       )}
     </div>
   );
@@ -437,12 +621,6 @@ export default function OccupancyDashboardPage() {
   const [drawerRoom, setDrawerRoom] = useState<{ ktx: string; building: string; room: string } | null>(null);
   const [selectedBuilding, setSelectedBuilding] = useState<string | null>(null);
   const [todayStats, setTodayStats] = useState<{ entered: number; left: number }>({ entered: 0, left: 0 });
-  const [genderStats, setGenderStats] = useState({ male: 0, female: 0 });
-  const [contractorStats, setContractorStats] = useState<[string, number][]>([]);
-  const [dashboardTotal, setDashboardTotal] = useState(0);
-  const [statsLoading, setStatsLoading] = useState(true);
-  const [genderByKtx, setGenderByKtx] = useState<Record<string, { male: number; female: number }>>({});
-  const [contractorByKtx, setContractorByKtx] = useState<Record<string, [string, number][]>>({});
   const [blockAssignments, setBlockAssignments] = useState<BlockAssignment[]>([]);
   const [specialists, setSpecialists] = useState<{ id: string; name: string; email?: string; role: 'admin' | 'staff'; assignedBlocks?: string[] }[]>([
     { id: 'sp-1', name: 'Nguyễn Minh Trường', role: 'admin', assignedBlocks: ['KTX 1 - Dãy 1', 'KTX 1 - Dãy 2'] },
@@ -452,11 +630,68 @@ export default function OccupancyDashboardPage() {
   const [dutyRoster, setDutyRoster] = useState<SpecialistWithDuty[]>(DEFAULT_SPECIALISTS_DUTY);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [roomUnitMap, setRoomUnitMap] = useState<Record<string, string>>({});
+  const [roomGenderMap, setRoomGenderMap] = useState<Record<string, 'male' | 'female' | 'auto'>>({});
+
+  // Load and sync room gender designations
+  useEffect(() => {
+    const saved = loadSavedRoomGenderMap();
+    setRoomGenderMap(saved);
+
+    fetchRoomLabelsFromSupabase().then(dbLabels => {
+      if (Object.keys(dbLabels).length > 0) {
+        setRoomGenderMap(prev => {
+          const merged = { ...dbLabels, ...prev };
+          saveRoomGenderMap(merged);
+          return merged;
+        });
+      }
+    });
+  }, []);
 
   const isEmpty = !loading && workers.length === 0;
 
-  // KTX list from real data
-  const allKTX = useMemo(() => getUniqueKTX(workers), [workers]);
+  // ── Unified Single Source of Truth for all operational metrics ───────────
+  const systemMetrics = useMemo(() => {
+    return computeSystemMetrics(workers, roomGenderMap, selectedKTX);
+  }, [workers, roomGenderMap, selectedKTX]);
+
+  // Dynamically retrieved KTX list that actually exist in the database (Supabase)
+  // Guaranteed NO hardcoded, virtual, or empty KTXs (no KTX 4, KTX 5).
+  // Guaranteed KTX 1, KTX 2, and KTX 3 are fully displayed.
+  const allKTX = systemMetrics.activeKtxList;
+  const ktxGenderRoomStats = systemMetrics.ktxBreakdown;
+  const overallRoomTotals = systemMetrics.overallRoomTotals;
+  const genderStats = useMemo(() => ({
+    male: systemMetrics.maleWorkers,
+    female: systemMetrics.femaleWorkers,
+  }), [systemMetrics.maleWorkers, systemMetrics.femaleWorkers]);
+  const contractorStats = systemMetrics.contractors;
+  const contractorByKtx = systemMetrics.contractorByKtx;
+  const genderByKtx = systemMetrics.genderByKtx;
+  const dashboardTotal = systemMetrics.totalWorkersAll;
+
+  // Handler for quick 1-click room gender assignment directly from Heatmap
+  const handleQuickAssignGender = useCallback(async (
+    ktx: string,
+    building: string,
+    room: string,
+    gender: 'male' | 'female' | 'auto'
+  ) => {
+    const key = `${ktx.trim()}||${building.trim()}||${room.trim()}`;
+    setRoomGenderMap(prev => {
+      const next = { ...prev };
+      if (gender === 'auto') {
+        delete next[key];
+      } else {
+        next[key] = gender;
+      }
+      saveRoomGenderMap(next);
+      return next;
+    });
+
+    // Persist to Supabase
+    await syncRoomGenderToSupabase(ktx, building, room, gender);
+  }, []);
 
   // Filtered workers by selected KTX
   const filteredWorkers = useMemo(() =>
@@ -528,132 +763,24 @@ export default function OccupancyDashboardPage() {
     fetchRoomUnits();
   }, [workers.length]);
 
-  const workersLength = workers.length;
-
-  // ── Fetch statistics ──────────────────────────────────────────────────────
-  useEffect(() => {
-    let active = true;
-    const fetchStats = async () => {
-      setStatsLoading(true);
-      const supabase = createClient();
-
-      try {
-        const { count: total } = await supabase
-          .from('workers')
-          .select('*', { count: 'exact', head: true });
-
-        let allWorkersData: { ktx: string; gioi_tinh: string; don_vi: string }[] = [];
-        let fetchFrom = 0;
-        const FETCH_SIZE = 1000;
-        let fetchHasMore = true;
-        while (fetchHasMore) {
-          const { data: batch } = await supabase
-            .from('workers')
-            .select('ktx, gioi_tinh, don_vi')
-            .range(fetchFrom, fetchFrom + FETCH_SIZE - 1);
-          if (!batch || batch.length === 0) { fetchHasMore = false; break; }
-          allWorkersData = allWorkersData.concat(batch as { ktx: string; gioi_tinh: string; don_vi: string }[]);
-          if (batch.length < FETCH_SIZE) { fetchHasMore = false; } else { fetchFrom += FETCH_SIZE; }
-        }
-
-        let maleCount = 0;
-        let femaleCount = 0;
-        const donViMap: Record<string, number> = {};
-        const donViDisplayMap: Record<string, string> = {};
-        const donViPerKtx: Record<string, Record<string, number>> = {};
-        const genderPerKtx: Record<string, { male: number; female: number }> = {};
-
-        allWorkersData.forEach(row => {
-          const ktxKey = (row.ktx ?? '').trim();
-          const g = (row.gioi_tinh ?? '').trim();
-          const gNorm = g
-            .toLowerCase()
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '')
-            .trim();
-
-          const isMale = gNorm === 'nam';
-          const isFemale = !isMale && (gNorm === 'nu' || gNorm === 'n' || (gNorm.startsWith('n') && gNorm.length <= 3 && gNorm !== 'nam'));
-
-          if (isMale) maleCount++;
-          else if (isFemale) femaleCount++;
-
-          if (ktxKey) {
-            if (!genderPerKtx[ktxKey]) genderPerKtx[ktxKey] = { male: 0, female: 0 };
-            if (isMale) genderPerKtx[ktxKey].male++;
-            else if (isFemale) genderPerKtx[ktxKey].female++;
-          }
-
-          const dvRaw = (row.don_vi ?? '').trim();
-          if (dvRaw) {
-            const dvKey = dvRaw.toUpperCase();
-            if (!donViDisplayMap[dvKey]) donViDisplayMap[dvKey] = dvRaw;
-            donViMap[dvKey] = (donViMap[dvKey] || 0) + 1;
-            if (ktxKey) {
-              if (!donViPerKtx[ktxKey]) donViPerKtx[ktxKey] = {};
-              donViPerKtx[ktxKey][dvKey] = (donViPerKtx[ktxKey][dvKey] || 0) + 1;
-            }
-          }
-        });
-
-        const sortedDonVi: [string, number][] = Object.entries(donViMap)
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 6)
-          .map(([key, count]) => [donViDisplayMap[key] ?? key, count]);
-
-        const contractorPerKtx: Record<string, [string, number][]> = {};
-        Object.entries(donViPerKtx).forEach(([ktxKey, map]) => {
-          contractorPerKtx[ktxKey] = Object.entries(map)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 5)
-            .map(([key, count]) => [donViDisplayMap[key] ?? key, count]);
-        });
-
-        if (!active) return;
-
-        setDashboardTotal(total ?? 0);
-        setGenderStats({ male: maleCount, female: femaleCount });
-        setContractorStats(sortedDonVi);
-        setGenderByKtx(genderPerKtx);
-        setContractorByKtx(contractorPerKtx);
-      } catch (err) {
-        console.error('fetchStats error:', err);
-      } finally {
-        if (active) setStatsLoading(false);
-      }
-    };
-    fetchStats();
-    return () => { active = false; };
-  }, [workersLength]);
-
-  // ── KPI calculations ──────────────────────────────────────────────────────
-  const totalCapacityAll = useMemo(() => {
-    const roomSet = new Set(workers.map(w => `${w.ktx}||${w.day}||${w.phongSo}`).filter(k => !k.startsWith('||')));
-    return roomSet.size * ROOM_CAPACITY;
-  }, [workers]);
-
-  const totalRoomsAll = useMemo(() => {
-    return new Set(workers.map(w => `${w.ktx}||${w.day}||${w.phongSo}`).filter(k => !k.startsWith('||'))).size;
-  }, [workers]);
-
-  const totalBuildingsAll = useMemo(() => countUniqueBuildings(workers), [workers]);
-  const totalKTXAll = useMemo(() => allKTX.length, [allKTX]);
+  // ── KPI calculations from Single Source of Truth ─────────────────────────
+  const totalCapacityAll = systemMetrics.capacity;
+  const totalRoomsAll = systemMetrics.roomCount;
+  const totalBuildingsAll = systemMetrics.buildingCount;
+  const totalKTXAll = allKTX.length;
 
   const workersWithRoom = useMemo(() => workers.filter(w => w.day && w.phongSo), [workers]);
-  const fillRateAll = totalCapacityAll > 0 ? Math.round((workersWithRoom.length / totalCapacityAll) * 100) : 0;
+  const fillRateAll = systemMetrics.fillRate;
 
   const ktxOccupancy = useMemo(() => aggregateKtxOccupancy(workers), [workers]);
-  const totalVacant = Math.max(0, totalCapacityAll - workersWithRoom.length);
+  const totalVacant = systemMetrics.vacantSpots;
 
-  const filteredRoomsSet = useMemo(() => {
-    return new Set(filteredWorkers.map(w => `${w.ktx}||${w.day}||${w.phongSo}`).filter(k => !k.startsWith('||')));
-  }, [filteredWorkers]);
-  const filteredRoomCount = filteredRoomsSet.size;
-  const filteredBuildingCount = useMemo(() => countUniqueBuildings(filteredWorkers), [filteredWorkers]);
-  const filteredCapacity = filteredRoomCount * ROOM_CAPACITY;
-  const filteredWithRoom = filteredWorkers.filter(w => w.day && w.phongSo).length;
-  const filteredFillRate = filteredCapacity > 0 ? Math.round((filteredWithRoom / filteredCapacity) * 100) : 0;
-  const filteredTotal = filteredWorkers.length;
+  const filteredBuildingCount = systemMetrics.buildingCount;
+  const filteredRoomCount = systemMetrics.roomCount;
+  const filteredCapacity = systemMetrics.capacity;
+  const filteredWithRoom = systemMetrics.workersWithRoom;
+  const filteredFillRate = systemMetrics.fillRate;
+  const filteredTotal = systemMetrics.selectedWorkersCount;
 
   const missingData = useMemo(() => filteredWorkers.filter(w => !w.day || !w.phongSo).length, [filteredWorkers]);
 
@@ -1007,15 +1134,15 @@ export default function OccupancyDashboardPage() {
           {/* ── 5. Detailed Statistics: Gender & Contractors ── */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             {/* Gender Stats */}
-            <div className="rounded-2xl border border-gray-700/60 bg-[#1F2937] p-5 shadow-xl transition-all duration-200 hover:border-gray-600/80">
+            <div className="rounded-2xl border border-gray-700/60 bg-[#1F2937] p-4 sm:p-5 shadow-xl transition-all duration-200 hover:border-gray-600/80">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2.5">
                   <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
                     <VenusAndMars size={20} />
                   </div>
                   <div>
-                    <h2 className="text-base font-bold text-white tracking-tight">Thống Kê Giới Tính</h2>
-                    <p className="text-xs text-gray-400">Phân bố nhân sự theo giới tính và KTX</p>
+                    <h2 className="text-base font-bold text-white tracking-tight">Thống Kê Giới Tính & Công Năng Phòng</h2>
+                    <p className="text-xs text-gray-400">Tự động quét toàn bộ KTX · Cơ cấu nhân sự và số lượng phòng</p>
                   </div>
                 </div>
                 <span className="text-xs text-gray-400 font-semibold font-tabular">
@@ -1023,42 +1150,121 @@ export default function OccupancyDashboardPage() {
                 </span>
               </div>
 
-              {/* Overall totals */}
+              {/* Overall totals with Room counts */}
               <div className="grid grid-cols-2 gap-3 mb-4">
                 <div className="rounded-xl bg-blue-950/40 border border-blue-500/30 p-3.5 hover:bg-blue-900/40 transition-colors">
-                  <p className="text-xs text-blue-300 font-semibold">Nam (Toàn hệ thống)</p>
-                  <p className="text-2xl font-bold text-blue-400 font-tabular mt-0.5">{genderStats.male.toLocaleString('vi-VN')}</p>
+                  <div className="flex items-center justify-between gap-1 flex-wrap">
+                    <p className="text-xs text-blue-300 font-semibold">Nam (Toàn hệ thống)</p>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                      {overallRoomTotals.maleRooms} Phòng Nam
+                    </span>
+                  </div>
+                  <p className="text-2xl font-bold text-blue-400 font-tabular mt-1">
+                    {genderStats.male.toLocaleString('vi-VN')} <span className="text-xs font-normal text-blue-300/80">người</span>
+                  </p>
                 </div>
+
                 <div className="rounded-xl bg-pink-950/40 border border-pink-500/30 p-3.5 hover:bg-pink-900/40 transition-colors">
-                  <p className="text-xs text-pink-300 font-semibold">Nữ (Toàn hệ thống)</p>
-                  <p className="text-2xl font-bold text-pink-400 font-tabular mt-0.5">{genderStats.female.toLocaleString('vi-VN')}</p>
+                  <div className="flex items-center justify-between gap-1 flex-wrap">
+                    <p className="text-xs text-pink-300 font-semibold">Nữ (Toàn hệ thống)</p>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-pink-500/20 text-pink-300 border border-pink-500/30">
+                      {overallRoomTotals.femaleRooms} Phòng Nữ
+                    </span>
+                  </div>
+                  <p className="text-2xl font-bold text-pink-400 font-tabular mt-1">
+                    {genderStats.female.toLocaleString('vi-VN')} <span className="text-xs font-normal text-pink-300/80">người</span>
+                  </p>
                 </div>
               </div>
 
-              {/* Per-KTX breakdown table */}
-              {Object.keys(genderByKtx).sort().length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Chi tiết từng khu KTX</p>
-                  <div className="space-y-1.5">
-                    {Object.keys(genderByKtx).sort().map(ktxKey => (
-                      <div
-                        key={ktxKey}
-                        className="rounded-xl border border-gray-700/50 bg-gray-800/60 px-3.5 py-2.5 flex items-center justify-between hover:bg-gray-700/60 hover:border-blue-500/40 transition-all duration-150"
-                      >
-                        <span className="text-xs font-bold text-white">{ktxKey}</span>
-                        <div className="flex items-center gap-3">
-                          <span className="text-xs text-blue-300 font-medium">
-                            Nam: <strong className="font-tabular text-blue-400">{genderByKtx[ktxKey].male}</strong>
+              {/* Per-KTX detailed breakdown table (Dynamically scans all active KTXs from Supabase) */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                    Chi tiết theo từng khu vực KTX
+                  </p>
+                  <span className="text-[11px] text-gray-500 font-medium font-tabular">
+                    {allKTX.length} KTX · {overallRoomTotals.totalRooms} phòng
+                  </span>
+                </div>
+                <div className="space-y-2 max-h-80 overflow-y-auto pr-1 scrollbar-thin">
+                  {ktxGenderRoomStats.map(stat => (
+                    <div
+                      key={stat.ktx}
+                      className="rounded-xl border border-gray-700/60 bg-gray-800/70 p-3 hover:bg-gray-750 hover:border-blue-500/40 transition-all"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                        {/* KTX Name and personnel count */}
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <span className={`text-xs font-bold px-2.5 py-1 rounded-lg border ${
+                            stat.ktx === 'KTX 1' ? 'bg-blue-500/20 text-blue-300 border-blue-500/30' :
+                            stat.ktx === 'KTX 2' ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' :
+                            stat.ktx === 'KTX 3' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' :
+                            'bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
+                          }`}>
+                            {stat.ktx}
                           </span>
-                          <span className="text-xs text-pink-300 font-medium">
-                            Nữ: <strong className="font-tabular text-pink-400">{genderByKtx[ktxKey].female}</strong>
+                          <div className="flex items-center gap-2 text-xs">
+                            <span className="text-blue-300 font-medium">
+                              Nam: <strong className="font-tabular text-blue-400">{stat.male}</strong>
+                            </span>
+                            <span className="text-gray-500">·</span>
+                            <span className="text-pink-300 font-medium">
+                              Nữ: <strong className="font-tabular text-pink-400">{stat.female}</strong>
+                            </span>
+                            <span className="text-gray-500 font-tabular">({stat.male + stat.female} người)</span>
+                          </div>
+                        </div>
+
+                        {/* Room breakdown badges */}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-blue-500/15 text-blue-300 border border-blue-500/30 font-tabular">
+                            <span>♂ {stat.maleRooms} P.Nam</span>
+                          </span>
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-pink-500/15 text-pink-300 border border-pink-500/30 font-tabular">
+                            <span>♀ {stat.femaleRooms} P.Nữ</span>
+                          </span>
+                          {stat.mixedRooms > 0 && (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-300 border border-amber-500/30 font-tabular">
+                              <span>{stat.mixedRooms} Hỗn hợp</span>
+                            </span>
+                          )}
+                          <span className="text-[10px] text-gray-500 font-tabular">
+                            ({stat.totalRooms} phòng)
                           </span>
                         </div>
                       </div>
-                    ))}
-                  </div>
+
+                      {/* Visual mini ratio bar for male rooms vs female rooms */}
+                      <div className="w-full h-1.5 bg-gray-700/80 rounded-full overflow-hidden flex mt-2">
+                        {stat.totalRooms > 0 ? (
+                          <>
+                            <div
+                              className="h-full bg-blue-500 transition-all duration-300"
+                              style={{ width: `${(stat.maleRooms / stat.totalRooms) * 100}%` }}
+                              title={`Phòng Nam: ${stat.maleRooms}/${stat.totalRooms}`}
+                            />
+                            <div
+                              className="h-full bg-pink-500 transition-all duration-300"
+                              style={{ width: `${(stat.femaleRooms / stat.totalRooms) * 100}%` }}
+                              title={`Phòng Nữ: ${stat.femaleRooms}/${stat.totalRooms}`}
+                            />
+                            {stat.mixedRooms > 0 && (
+                              <div
+                                className="h-full bg-amber-500 transition-all duration-300"
+                                style={{ width: `${(stat.mixedRooms / stat.totalRooms) * 100}%` }}
+                                title={`Hỗn hợp: ${stat.mixedRooms}/${stat.totalRooms}`}
+                              />
+                            )}
+                          </>
+                        ) : (
+                          <div className="h-full w-full bg-gray-650/40 text-center" title="Chưa có dữ liệu phòng" />
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              )}
+              </div>
             </div>
 
             {/* Contractor/Unit Stats */}
@@ -1167,20 +1373,40 @@ export default function OccupancyDashboardPage() {
               )}
             </div>
 
-            {/* Heatmap Legend */}
-            <div className="flex flex-wrap items-center gap-3 pb-4 mb-4 border-b border-gray-700/60">
-              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Chú thích trạng thái:</span>
-              {[
-                { label: 'Còn trống', dot: 'bg-emerald-400', badge: 'bg-emerald-950/50 border-emerald-500/40 text-emerald-300' },
-                { label: 'Đầy 100%', dot: 'bg-amber-400', badge: 'bg-amber-950/50 border-amber-500/40 text-amber-300' },
-                { label: 'Quá tải (>10)', dot: 'bg-rose-400', badge: 'bg-rose-950/50 border-rose-500/40 text-rose-300' },
-                { label: 'Phòng trống (0)', dot: 'bg-gray-400', badge: 'bg-gray-800 border-gray-700 text-gray-400' },
-              ].map(leg => (
-                <div key={leg.label} className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium ${leg.badge}`}>
-                  <span className={`w-2 h-2 rounded-full ${leg.dot}`} />
-                  <span>{leg.label}</span>
-                </div>
-              ))}
+            {/* Heatmap Legend: Room Gender Function & Occupancy */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-4 mb-4 border-b border-gray-700/60">
+              {/* Legend 1: Room Gender Function */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Công năng:</span>
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-lg bg-blue-500/20 text-blue-300 border border-blue-500/35">
+                  <span>♂ Phòng Nam</span>
+                </span>
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-lg bg-pink-500/20 text-pink-300 border border-pink-500/40">
+                  <span>♀ Phòng Nữ</span>
+                </span>
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/35">
+                  <span>⚡ Hỗn hợp</span>
+                </span>
+                <span className="text-[11px] text-gray-400 italic hidden sm:inline ml-1">
+                  (Nhấp vào nhãn trên ô phòng để đổi nhanh)
+                </span>
+              </div>
+
+              {/* Legend 2: Occupancy Status */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Công suất:</span>
+                {[
+                  { label: 'Còn trống', dot: 'bg-emerald-400', badge: 'bg-emerald-950/50 border-emerald-500/40 text-emerald-300' },
+                  { label: 'Đầy 100%', dot: 'bg-amber-400', badge: 'bg-amber-950/50 border-amber-500/40 text-amber-300' },
+                  { label: 'Quá tải (>10)', dot: 'bg-rose-400', badge: 'bg-rose-950/50 border-rose-500/40 text-rose-300' },
+                  { label: 'Trống (0)', dot: 'bg-gray-400', badge: 'bg-gray-800 border-gray-700 text-gray-400' },
+                ].map(leg => (
+                  <div key={leg.label} className={`flex items-center gap-1.5 px-2 py-0.5 rounded-lg border text-[11px] font-medium ${leg.badge}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${leg.dot}`} />
+                    <span>{leg.label}</span>
+                  </div>
+                ))}
+              </div>
             </div>
 
             {isEmpty && (
@@ -1219,7 +1445,24 @@ export default function OccupancyDashboardPage() {
                 {ktxListForGrid.map(ktx => {
                   const ktxWorkers = workers.filter(w => w.ktx === ktx);
                   const ktxBuildings = getUniqueBuildings(ktxWorkers).filter(b => !selectedBuilding || b === selectedBuilding);
-                  if (ktxBuildings.length === 0) return null;
+                  if (ktxBuildings.length === 0) {
+                    if (selectedKTX === ktx) {
+                      return (
+                        <div key={ktx} className="p-8 rounded-xl bg-gray-850/50 border border-gray-800/80 text-center space-y-3">
+                          <div className="flex items-center justify-center gap-2">
+                            <span className="text-xs font-bold px-3 py-1 rounded-lg border bg-blue-500/20 text-blue-300 border-blue-500/30">
+                              {ktx}
+                            </span>
+                            <span className="text-xs text-gray-400 font-medium">0 công nhân · 0 dãy phòng</span>
+                          </div>
+                          <p className="text-sm text-gray-400 max-w-md mx-auto">
+                            Khu vực {ktx} hiện đang sẵn sàng tiếp nhận nhân sự và chưa có dữ liệu lưu trú. Bạn có thể sử dụng tính năng &quot;Xếp phòng nhanh&quot; hoặc &quot;Import Excel&quot; để bổ sung công nhân vào {ktx}.
+                          </p>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }
                   return (
                     <div key={ktx} className="p-3.5 sm:p-4 rounded-xl bg-gray-850/50 border border-gray-800/80 overflow-x-auto w-full scrollbar-thin">
                       {/* KTX Title + Dynamic Daily Duty Personnel Info */}
@@ -1228,7 +1471,11 @@ export default function OccupancyDashboardPage() {
                           <span className={`text-xs font-bold px-3 py-1 rounded-lg border ${
                             ktx === 'KTX 1'
                               ? 'bg-blue-500/20 text-blue-300 border-blue-500/30'
-                              : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                              : ktx === 'KTX 2'
+                              ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                              : ktx === 'KTX 3'
+                              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                              : 'bg-purple-500/20 text-purple-300 border-purple-500/30'
                           }`}>
                             {ktx}
                           </span>
@@ -1270,7 +1517,7 @@ export default function OccupancyDashboardPage() {
                           );
                         })()}
                       </div>
-                      <div className="flex flex-wrap gap-5 sm:gap-6 min-w-0 w-full">
+                      <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-5 sm:gap-6 min-w-0 w-full items-start">
                         {ktxBuildings.map(building => {
                           const buildingWorkers = ktxWorkers.filter(w => w.day === building);
                           const rooms = getUniqueRooms(ktxWorkers, building);
@@ -1278,7 +1525,7 @@ export default function OccupancyDashboardPage() {
                           const occupancyPct = totalCap > 0 ? buildingWorkers.length / totalCap : 0;
                           const barColor = occupancyPct > 1 ? 'bg-rose-500' : occupancyPct >= 1 ? 'bg-amber-400' : occupancyPct >= 0.5 ? 'bg-emerald-400' : 'bg-blue-400';
                           return (
-                            <div key={building} className="flex-1 min-w-[230px] max-w-full">
+                            <div key={building} className="rounded-2xl bg-gray-900/60 border border-gray-800/90 p-4 sm:p-5 flex flex-col justify-start shadow-md hover:border-gray-700/80 transition-all h-auto self-start">
                               <BlockTitle
                                 ktx={ktx}
                                 building={building}
@@ -1288,11 +1535,16 @@ export default function OccupancyDashboardPage() {
                                 occupancyPct={occupancyPct}
                                 barColor={barColor}
                               />
-                              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
+                              <div className="grid grid-cols-[repeat(auto-fill,minmax(130px,1fr))] gap-2.5 sm:gap-3 mt-3 items-stretch">
                                 {rooms.map(room => {
                                   const roomWorkers = buildingWorkers.filter(w => w.phongSo === room);
                                   const roomKey = `${ktx}||${building}||${room}`;
                                   const unitName = roomUnitMap[roomKey];
+                                  const adminGender = roomGenderMap[roomKey];
+                                  const gInfo = getRoomGenderInfo(
+                                    roomWorkers,
+                                    adminGender === 'male' ? 'Nam' : adminGender === 'female' ? 'Nữ' : null
+                                  );
                                   return (
                                     <HeatmapRoomCell
                                       key={`${ktx}-${building}-${room}`}
@@ -1301,9 +1553,11 @@ export default function OccupancyDashboardPage() {
                                       capacity={ROOM_CAPACITY}
                                       ktx={ktx}
                                       building={building}
-                                      workers={roomWorkers.map(w => ({ hoVaTen: w.hoVaTen, maNV: w.maNV }))}
+                                      workers={roomWorkers.map(w => ({ hoVaTen: w.hoVaTen, maNV: w.maNV, gioiTinh: w.gioiTinh }))}
                                       onClickRoom={handleRoomClick}
                                       unitName={unitName}
+                                      genderInfo={gInfo}
+                                      onQuickAssignGender={handleQuickAssignGender}
                                     />
                                   );
                                 })}
@@ -1338,6 +1592,21 @@ export default function OccupancyDashboardPage() {
             building={drawerRoom.building}
             room={drawerRoom.room}
             workers={drawerWorkers}
+            adminAssignedUnit={roomUnitMap[`${drawerRoom.ktx}||${drawerRoom.building}||${drawerRoom.room}`]}
+            assignedGender={roomGenderMap[`${drawerRoom.ktx}||${drawerRoom.building}||${drawerRoom.room}`]}
+            onRoomGenderUpdated={(newGender) => {
+              const key = `${drawerRoom.ktx}||${drawerRoom.building}||${drawerRoom.room}`;
+              setRoomGenderMap(prev => {
+                const next = { ...prev };
+                if (newGender === 'auto') {
+                  delete next[key];
+                } else {
+                  next[key] = newGender;
+                }
+                saveRoomGenderMap(next);
+                return next;
+              });
+            }}
             onClose={() => setDrawerRoom(null)}
           />
         )}

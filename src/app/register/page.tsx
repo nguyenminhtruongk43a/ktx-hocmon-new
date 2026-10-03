@@ -585,7 +585,7 @@ export default function RegisterPage() {
                   <label className={labelCls}>Khu KTX <span className="text-red-500">*</span></label>
                   <input type="text" value={form.ktx} onChange={handleField('ktx')} placeholder="VD: KTX 1, KTX 2..." list="ktx-list" className={inputCls} />
                   <datalist id="ktx-list">
-                    <option value="KTX 1" /><option value="KTX 2" /><option value="KTX 3" /><option value="KTX 4" /><option value="KTX 5" />
+                    <option value="KTX 1" /><option value="KTX 2" /><option value="KTX 3" />
                   </datalist>
                 </div>
                 <div>

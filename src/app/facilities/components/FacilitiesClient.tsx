@@ -278,7 +278,7 @@ function AddRoomModal({ activeKtx, ktxOptions, onSave, onClose, saving }: {
   const [newKtxInput, setNewKtxInput] = useState('');
   const canSave = form.day.trim() && form.phong_khu_vuc.trim() && form.ktx.trim();
 
-  const allKtxChoices = Array.from(new Set([...ktxOptions, 'KTX 1', 'KTX 2', 'KTX 3', 'KTX 4', 'KTX 5'])).sort();
+  const allKtxChoices = Array.from(new Set([...ktxOptions, 'KTX 1', 'KTX 2', 'KTX 3'])).sort();
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">

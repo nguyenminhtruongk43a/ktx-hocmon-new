@@ -151,12 +151,13 @@ function normalizePhong(raw: string): string {
   return trimmed;
 }
 
-/** Normalize KTX value from Excel to standard "KTX 1" or "KTX 2" */
+/** Normalize KTX value from Excel to standard "KTX 1", "KTX 2", or "KTX 3" */
 function normalizeKtxValue(raw: string): string {
   if (!raw) return '';
   const s = raw.trim().toUpperCase().replace(/\s+/g, ' ');
   if (s.includes('1') || s === 'KTX1') return 'KTX 1';
   if (s.includes('2') || s === 'KTX2') return 'KTX 2';
+  if (s.includes('3') || s === 'KTX3') return 'KTX 3';
   return raw.trim();
 }
 
@@ -192,7 +193,7 @@ function ExcelImportModal({ onClose, onImport }: { onClose: () => void; onImport
   const [previewPage, setPreviewPage] = useState(1);
   const [parseError, setParseError] = useState('');
   const [importing, setImporting] = useState(false);
-  const [selectedKtx, setSelectedKtx] = useState<'KTX 1' | 'KTX 2' | ''>('');
+  const [selectedKtx, setSelectedKtx] = useState<string>('');
   const [hasKtxColumn, setHasKtxColumn] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -409,8 +410,8 @@ function ExcelImportModal({ onClose, onImport }: { onClose: () => void; onImport
               <Building2 size={16} className="text-primary" />
               <p className="text-sm font-bold text-foreground">Chọn KTX để nhập dữ liệu <span className="text-red-500">*</span></p>
             </div>
-            <div className="flex gap-3">
-              {(['KTX 1', 'KTX 2'] as const).map(ktx => (
+            <div className="flex gap-3 flex-wrap">
+              {['KTX 1', 'KTX 2', 'KTX 3'].map(ktx => (
                 <label key={ktx} className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 cursor-pointer transition-all font-semibold text-sm ${selectedKtx === ktx ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-card text-foreground hover:border-primary/50'}`}>
                   <input type="radio" name="ktx-select" value={ktx} checked={selectedKtx === ktx} onChange={() => setSelectedKtx(ktx)} className="hidden" />
                   {ktx}
@@ -563,7 +564,7 @@ function BulkAssignKtxModal({
 }) {
   const noKtxWorkers = useMemo(() => workers.filter(w => !w.ktx || w.ktx.trim() === ''), [workers]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set(noKtxWorkers.map(w => w.id)));
-  const [targetKtx, setTargetKtx] = useState<'KTX 1' | 'KTX 2'>('KTX 1');
+  const [targetKtx, setTargetKtx] = useState<string>('KTX 1');
   const [assigning, setAssigning] = useState(false);
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 50;
@@ -622,8 +623,8 @@ function BulkAssignKtxModal({
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
           <div className="p-4 rounded-xl border-2 border-primary/30 bg-primary/5">
             <p className="text-sm font-bold text-foreground mb-3">Gán về KTX:</p>
-            <div className="flex gap-3">
-              {(['KTX 1', 'KTX 2'] as const).map(ktx => (
+            <div className="flex gap-3 flex-wrap">
+              {['KTX 1', 'KTX 2', 'KTX 3'].map(ktx => (
                 <label key={ktx} className={`flex items-center gap-2 px-5 py-2.5 rounded-lg border-2 cursor-pointer transition-all font-bold text-sm ${targetKtx === ktx ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-card text-foreground hover:border-primary/50'}`}>
                   <input type="radio" name="bulk-ktx" value={ktx} checked={targetKtx === ktx} onChange={() => setTargetKtx(ktx)} className="hidden" />
                   {ktx}

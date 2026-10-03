@@ -1,21 +1,30 @@
 'use client';
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { Worker, calcSoNgay, getProfileStatus } from '@/data/workers';
-import { X, Users, Phone, CreditCard, MapPin, Calendar, FileText } from 'lucide-react';
+import { X, Users, Phone, CreditCard, MapPin, Calendar, FileText, VenusAndMars, CheckCircle2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/context/AuthContext';
+import {
+  getRoomGenderInfo,
+  syncRoomGenderToSupabase,
+  loadSavedRoomGenderMap,
+  saveRoomGenderMap,
+  RoomGenderType,
+} from '@/lib/roomGender';
 
 interface Props {
   ktx: string;
   building: string;
-  buildingRaw: string;
+  buildingRaw?: string;
   room: string;
   workers: Worker[];
   adminAssignedUnit?: string;
   roomNote?: string | null;
+  assignedGender?: 'male' | 'female' | 'auto';
   onClose: () => void;
   onUnitUpdated?: (newUnit: string | null) => void;
   onRoomNoteUpdated?: (newNote: string | null) => void;
+  onRoomGenderUpdated?: (newGender: 'male' | 'female' | 'auto') => void;
 }
 
 function StatusDot({ worker }: { worker: Worker }) {
@@ -25,7 +34,20 @@ function StatusDot({ worker }: { worker: Worker }) {
   return <span className="w-2 h-2 rounded-full bg-yellow-500 flex-shrink-0" title="Chưa phân phòng" />;
 }
 
-export default function RoomDrawer({ ktx, building, buildingRaw, room, workers, adminAssignedUnit, roomNote, onClose, onUnitUpdated, onRoomNoteUpdated }: Props) {
+export default function RoomDrawer({
+  ktx,
+  building,
+  buildingRaw,
+  room,
+  workers,
+  adminAssignedUnit,
+  roomNote,
+  assignedGender: propAssignedGender,
+  onClose,
+  onUnitUpdated,
+  onRoomNoteUpdated,
+  onRoomGenderUpdated,
+}: Props) {
   const { isAdmin } = useAuth();
 
   // --- Room Note state ---
@@ -34,6 +56,16 @@ export default function RoomDrawer({ ktx, building, buildingRaw, room, workers, 
   const [noteError, setNoteError] = useState<string | null>(null);
   const [noteSuccess, setNoteSuccess] = useState(false);
   const [loadingNote, setLoadingNote] = useState(false);
+
+  // --- Room Gender state ---
+  const roomStorageKey = useMemo(() => `${ktx.trim()}||${building.trim()}||${room.trim()}`, [ktx, building, room]);
+  const [selectedGender, setSelectedGender] = useState<'male' | 'female' | 'auto'>(() => {
+    if (propAssignedGender) return propAssignedGender;
+    const savedMap = loadSavedRoomGenderMap();
+    return savedMap[roomStorageKey] || 'auto';
+  });
+  const [savingGender, setSavingGender] = useState(false);
+  const [genderToast, setGenderToast] = useState<string | null>(null);
 
   /** Resolve the effective day_nha value for Supabase queries */
   const resolveEffectiveDayNha = useCallback((): string => {
@@ -48,46 +80,84 @@ export default function RoomDrawer({ ktx, building, buildingRaw, room, workers, 
     return building || '';
   }, [buildingRaw, building]);
 
-  // On open: fetch the latest room_note directly from Supabase to ensure freshness
+  // Compute live gender info from workers & current assignment
+  const genderInfo = useMemo(() => {
+    const overrideLabel = selectedGender === 'male' ? 'Nam' : selectedGender === 'female' ? 'Nữ' : null;
+    return getRoomGenderInfo(workers, overrideLabel);
+  }, [workers, selectedGender]);
+
+  // On open: fetch the latest room_note & room_label from Supabase
   useEffect(() => {
-    // Initialize from prop immediately (fast path)
     setNoteInput(roomNote ?? '');
 
-    if (!isAdmin) return;
-
-    // Then fetch fresh from DB to catch any updates
-    const fetchNote = async () => {
+    const fetchFreshData = async () => {
       setLoadingNote(true);
       try {
         const supabase = createClient();
         const effectiveDayNha = resolveEffectiveDayNha();
         const { data, error } = await supabase
           .from('room_units')
-          .select('room_note')
+          .select('room_note, room_label')
           .eq('ktx', ktx)
           .eq('day_nha', effectiveDayNha)
           .eq('phong_so', room)
           .maybeSingle();
 
         if (!error && data) {
-          setNoteInput(data.room_note ?? '');
+          if (data.room_note !== undefined) {
+            setNoteInput(data.room_note ?? '');
+          }
+          if (data.room_label) {
+            const norm = data.room_label.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+            if (norm === 'nam' || norm === 'phong nam') {
+              setSelectedGender('male');
+            } else if (norm === 'nu' || norm === 'phong nu') {
+              setSelectedGender('female');
+            }
+          }
         }
       } catch {
-        // Silently fall back to prop value
+        // Silently keep current state
       } finally {
         setLoadingNote(false);
       }
     };
 
-    fetchNote();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ktx, room, buildingRaw, building]);
+    fetchFreshData();
+  }, [ktx, room, buildingRaw, building, roomNote, resolveEffectiveDayNha]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
   }, [onClose]);
+
+  /** Change room gender assignment */
+  const handleSelectGender = async (gender: 'male' | 'female' | 'auto') => {
+    setSelectedGender(gender);
+    setSavingGender(true);
+
+    // Save to localStorage immediately
+    const map = loadSavedRoomGenderMap();
+    if (gender === 'auto') {
+      delete map[roomStorageKey];
+    } else {
+      map[roomStorageKey] = gender;
+    }
+    saveRoomGenderMap(map);
+
+    // Notify parent
+    onRoomGenderUpdated?.(gender);
+
+    // Sync to Supabase
+    const effectiveDayNha = resolveEffectiveDayNha();
+    await syncRoomGenderToSupabase(ktx, effectiveDayNha, room, gender);
+    setSavingGender(false);
+
+    const label = gender === 'female' ? 'Phòng Nữ' : gender === 'male' ? 'Phòng Nam' : 'Tự động theo nhân sự';
+    setGenderToast(`Đã cập nhật: ${label}`);
+    setTimeout(() => setGenderToast(null), 2500);
+  };
 
   /** Save room_note to room_units table */
   const handleSaveRoomNote = useCallback(async () => {
@@ -99,9 +169,7 @@ export default function RoomDrawer({ ktx, building, buildingRaw, room, workers, 
       const trimmed = noteInput.trim();
       const effectiveDayNha = resolveEffectiveDayNha();
 
-      console.log('[RoomDrawer] Lưu ghi chú phòng:', { ktx, day_nha: effectiveDayNha, phong_so: room, room_note: trimmed || null });
-
-      // Step 1: Try UPDATE first (row must already exist)
+      // Step 1: Try UPDATE first
       const { data: updateData, error: updateError } = await supabase
         .from('room_units')
         .update({ room_note: trimmed || null, updated_at: new Date().toISOString() })
@@ -127,8 +195,7 @@ export default function RoomDrawer({ ktx, building, buildingRaw, room, workers, 
           });
 
         if (insertError) {
-          // Fallback: upsert if insert fails (race condition)
-          const { error: upsertError } = await supabase
+          await supabase
             .from('room_units')
             .upsert(
               {
@@ -140,21 +207,14 @@ export default function RoomDrawer({ ktx, building, buildingRaw, room, workers, 
               },
               { onConflict: 'ktx,day_nha,phong_so' }
             );
-          if (upsertError) {
-            throw new Error(`Lỗi lưu ghi chú: ${upsertError.message}`);
-          }
         }
       }
 
-      console.log('[RoomDrawer] ✅ Đã lưu ghi chú thành công!', { ktx, day_nha: effectiveDayNha, phong_so: room, room_note: trimmed || null });
-
-      // Update state immediately (optimistic)
       onRoomNoteUpdated?.(trimmed || null);
       setNoteSuccess(true);
       setTimeout(() => setNoteSuccess(false), 3000);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error('[RoomDrawer] ❌ Lỗi lưu ghi chú:', msg);
       setNoteError(msg || 'Lỗi lưu ghi chú — vui lòng thử lại');
     } finally {
       setSavingNote(false);
@@ -163,24 +223,122 @@ export default function RoomDrawer({ ktx, building, buildingRaw, room, workers, 
 
   return (
     <>
+      {/* Toast */}
+      {genderToast && (
+        <div className="fixed top-5 right-5 z-[100] flex items-center gap-2 px-4 py-2.5 bg-gray-900 border border-emerald-500/60 text-white rounded-xl shadow-2xl animate-fade-in backdrop-blur-md text-xs font-bold">
+          <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+          <span>{genderToast}</span>
+        </div>
+      )}
+
       {/* Backdrop */}
       <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+
       {/* Drawer */}
       <div className="fixed right-0 top-0 h-full z-50 w-full max-w-md bg-[#1F2937] border-l border-gray-700/80 text-white shadow-2xl flex flex-col animate-slide-in-right">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-700/80 bg-gray-900/60">
           <div>
-            <h2 className="text-base font-bold text-white flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-blue-400" />
-              {building} — Phòng {room}
-            </h2>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-base font-bold text-white flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-blue-400" />
+                {building} — Phòng {room}
+              </h2>
+              {/* Gender badge */}
+              <span
+                className={`px-2 py-0.5 rounded-full text-[11px] font-bold border inline-flex items-center gap-1 ${
+                  genderInfo.gender === 'female'
+                    ? 'bg-pink-500/25 text-pink-300 border-pink-500/40'
+                    : genderInfo.gender === 'male'
+                    ? 'bg-blue-500/20 text-blue-300 border-blue-500/30'
+                    : 'bg-gray-800 text-gray-400 border-gray-700'
+                }`}
+              >
+                <span>{genderInfo.gender === 'female' ? '♀' : genderInfo.gender === 'male' ? '♂' : '•'}</span>
+                <span>{genderInfo.label}</span>
+              </span>
+            </div>
             <p className="text-xs text-gray-400 mt-0.5 font-tabular">
-              {workers.length} công nhân đang lưu trú
+              {workers.length} công nhân đang lưu trú ({genderInfo.maleCount} Nam · {genderInfo.femaleCount} Nữ)
             </p>
           </div>
           <button onClick={onClose} className="p-2 rounded-xl text-gray-400 hover:text-white hover:bg-gray-800 transition-colors">
             <X size={18} />
           </button>
+        </div>
+
+        {/* ── Room Gender Classification Admin Control ── */}
+        <div className="px-5 py-3.5 border-b border-gray-700/80 bg-gray-850/70">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <VenusAndMars size={14} className="text-indigo-400" />
+              <span className="text-xs font-bold uppercase tracking-wider text-gray-300">
+                Phân Loại Công Năng Phòng
+              </span>
+            </div>
+            {genderInfo.isCustom ? (
+              <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
+                Admin đã gán
+              </span>
+            ) : (
+              <span className="text-[10px] font-medium text-gray-400 bg-gray-800 px-2 py-0.5 rounded">
+                Tự động theo nhân sự
+              </span>
+            )}
+          </div>
+
+          {/* Direct gender classification buttons */}
+          <div className="space-y-2">
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => handleSelectGender('male')}
+                disabled={savingGender}
+                className={`py-2 px-2.5 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-1.5 ${
+                  selectedGender === 'male'
+                    ? 'bg-blue-600 text-white border-blue-400 shadow-md shadow-blue-600/30 ring-1 ring-blue-400'
+                    : 'bg-gray-800/80 text-gray-300 border-gray-700 hover:bg-gray-750 hover:text-white'
+                }`}
+              >
+                <span className="text-sm">♂</span>
+                <span>Phòng Nam</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSelectGender('female')}
+                disabled={savingGender}
+                className={`py-2 px-2.5 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-1.5 ${
+                  selectedGender === 'female'
+                    ? 'bg-pink-600 text-white border-pink-400 shadow-md shadow-pink-600/30 ring-1 ring-pink-400'
+                    : 'bg-gray-800/80 text-gray-300 border-gray-700 hover:bg-gray-750 hover:text-white'
+                }`}
+              >
+                <span className="text-sm">♀</span>
+                <span>Phòng Nữ</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSelectGender('auto')}
+                disabled={savingGender}
+                className={`py-2 px-2 rounded-xl text-xs font-medium border transition-all flex items-center justify-center gap-1 ${
+                  selectedGender === 'auto'
+                    ? 'bg-emerald-600/30 text-emerald-300 border-emerald-500/50 shadow-sm'
+                    : 'bg-gray-800/80 text-gray-400 border-gray-700 hover:bg-gray-750 hover:text-gray-300'
+                }`}
+              >
+                <span>⚡</span>
+                <span>Tự động</span>
+              </button>
+            </div>
+
+            <p className="text-[11px] text-gray-400 italic">
+              {selectedGender === 'male' && 'Đã cố định là Phòng Nam trên sơ đồ và thống kê.'}
+              {selectedGender === 'female' && 'Đã cố định là Phòng Nữ trên sơ đồ và thống kê.'}
+              {selectedGender === 'auto' && 'Hệ thống tự động nhận diện theo giới tính công nhân trong phòng.'}
+            </p>
+          </div>
         </div>
 
         {/* Room Note section */}
@@ -194,8 +352,8 @@ export default function RoomDrawer({ ktx, building, buildingRaw, room, workers, 
             <textarea
               value={noteInput}
               onChange={e => setNoteInput(e.target.value)}
-              placeholder="Điền thông tin tự do: loại đơn vị, chú thích đặc biệt, tên phòng..."
-              rows={3}
+              placeholder="Điền thông tin: loại đơn vị, ghi chú đặc biệt..."
+              rows={2}
               className="w-full text-xs border border-gray-700 rounded-xl px-3 py-2 bg-gray-900/80 text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-400 disabled:opacity-50 resize-none"
               disabled={savingNote || loadingNote}
             />
@@ -240,27 +398,41 @@ export default function RoomDrawer({ ktx, building, buildingRaw, room, workers, 
             <div className="divide-y divide-gray-700/50">
               {workers.map((w, idx) => {
                 const soNgay = calcSoNgay(w.ngayVaoKTX, w.ngayRaKTX);
+                const isFemaleWorker = (w.gioiTinh || '').toLowerCase().includes('nữ') || (w.gioiTinh || '').toLowerCase() === 'nu';
                 return (
-                  <div key={w.id} className="px-5 py-3.5 hover:bg-gray-750/70 transition-colors">
+                  <div key={w.id} className="px-5 py-3 hover:bg-gray-750/70 transition-colors">
                     <div className="flex items-start gap-3">
                       <div className="flex items-center gap-2 flex-shrink-0 mt-0.5">
                         <span className="text-xs text-gray-500 w-5 text-right font-tabular">{idx + 1}</span>
                         <StatusDot worker={w} />
-                        <div className="w-8 h-8 rounded-lg bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400 text-xs font-bold">
+                        <div className={`w-8 h-8 rounded-lg border flex items-center justify-center text-xs font-bold ${
+                          isFemaleWorker
+                            ? 'bg-pink-500/20 border-pink-500/30 text-pink-300'
+                            : 'bg-blue-500/20 border-blue-500/30 text-blue-400'
+                        }`}>
                           {w.hoVaTen.split(' ').pop()?.charAt(0) ?? '?'}
                         </div>
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
-                          <p className="text-sm font-bold text-white whitespace-nowrap truncate">{w.hoVaTen}</p>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm font-bold text-white whitespace-normal break-words leading-tight">{w.hoVaTen}</p>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded border ${
+                              isFemaleWorker
+                                ? 'bg-pink-500/20 text-pink-300 border-pink-500/30'
+                                : 'bg-blue-500/20 text-blue-300 border-blue-500/30'
+                            }`}>
+                              {isFemaleWorker ? 'Nữ' : 'Nam'}
+                            </span>
+                          </div>
                           {w.tieuDoan && (
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 whitespace-nowrap shrink-0">
                               TD {w.tieuDoan}
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-gray-400 font-tabular whitespace-nowrap truncate">{w.maNV ? `#${w.maNV}` : 'Chưa có mã NV'}</p>
-                        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs">
+                        <p className="text-xs text-gray-400 font-tabular whitespace-nowrap truncate mt-0.5">{w.maNV ? `#${w.maNV}` : 'Chưa có mã NV'}</p>
+                        <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs">
                           {w.soDienThoai && (
                             <span className="flex items-center gap-1 text-gray-300 font-tabular whitespace-nowrap">
                               <Phone size={11} className="text-gray-400 shrink-0" />{w.soDienThoai}

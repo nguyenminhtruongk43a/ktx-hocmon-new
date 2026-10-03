@@ -307,7 +307,7 @@ export default function RoomOccupancyGrid() {
                         </div>
                         {unitLabel && (
                           <div className="mt-1.5">
-                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold truncate max-w-full ${isAdminAssigned ? 'bg-indigo-100 text-indigo-700' : 'bg-teal-100 text-teal-700'}`}>
+                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold whitespace-normal break-words max-w-full ${isAdminAssigned ? 'bg-indigo-100 text-indigo-700' : 'bg-teal-100 text-teal-700'}`}>
                               {isAdminAssigned && <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 flex-shrink-0" />}
                               {unitLabel}
                             </span>
