@@ -15,7 +15,7 @@ import dynamic from 'next/dynamic';
 import { createClient } from '@/lib/supabase/client';
 import WorkerFormModal from '@/app/worker-management/components/WorkerFormModal';
 import ExecutiveSpecialistsCard from './components/ExecutiveSpecialistsCard';
-import { SpecialistWithDuty, DEFAULT_SPECIALISTS_DUTY } from '@/lib/dutyRoster';
+import { SpecialistWithDuty } from '@/lib/dutyRoster';
 import {
   getRoomGenderInfo,
   loadSavedRoomGenderMap,
@@ -592,12 +592,8 @@ export default function OccupancyDashboardPage() {
   const [selectedBuilding, setSelectedBuilding] = useState<string | null>(null);
   const [todayStats, setTodayStats] = useState<{ entered: number; left: number }>({ entered: 0, left: 0 });
   const [blockAssignments, setBlockAssignments] = useState<BlockAssignment[]>([]);
-  const [specialists, setSpecialists] = useState<{ id: string; name: string; email?: string; role: 'admin' | 'staff'; assignedBlocks?: string[] }[]>([
-    { id: 'sp-1', name: 'Nguyễn Minh Trường', role: 'admin', assignedBlocks: ['KTX 1 - Dãy 1', 'KTX 1 - Dãy 2'] },
-    { id: 'sp-2', name: 'Trần Văn Hoàng', role: 'staff', assignedBlocks: ['KTX 1 - Dãy 1', 'KTX 1 - Dãy 2', 'KTX 1 - Dãy 3'] },
-    { id: 'sp-3', name: 'Lê Thị Thu Thảo', role: 'staff', assignedBlocks: ['KTX 1 - Dãy 4', 'KTX 1 - Dãy 5', 'KTX 1 - Dãy 6'] },
-  ]);
-  const [dutyRoster, setDutyRoster] = useState<SpecialistWithDuty[]>(DEFAULT_SPECIALISTS_DUTY);
+  const [specialists, setSpecialists] = useState<{ id: string; name: string; email?: string; role: 'admin' | 'staff'; assignedBlocks?: string[] }[]>([]);
+  const [dutyRoster, setDutyRoster] = useState<SpecialistWithDuty[]>([]);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [roomUnitMap, setRoomUnitMap] = useState<Record<string, string>>({});
   const [roomGenderMap, setRoomGenderMap] = useState<Record<string, 'male' | 'female' | 'auto'>>({});
