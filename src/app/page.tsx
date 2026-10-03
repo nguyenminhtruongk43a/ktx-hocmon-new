@@ -378,7 +378,7 @@ function RoomTooltip({
   );
 }
 
-// ─── Heatmap Room Cell ─────────────────────────────────────────────────────
+// ─── Heatmap Room Cell (Ultra Compact 2-Row Design) ────────────────────────
 function HeatmapRoomCell({
   room, count, capacity, ktx, building, workers, onClickRoom, unitName, genderInfo, onQuickAssignGender
 }: {
@@ -423,11 +423,12 @@ function HeatmapRoomCell({
   };
 
   const occupancyPercent = capacity > 0 ? Math.round((count / capacity) * 100) : 0;
+  const fullTooltip = `P.${room} · ${count}/${capacity} (${occupancyPercent}%) · ${label}${genderInfo.isCustom ? ` (Phòng ${genderInfo.gender === 'male' ? 'Nam' : genderInfo.gender === 'female' ? 'Nữ' : ''})` : ''}${unitName ? ` · ĐV: ${unitName}` : ''}`;
 
   return (
-    <div className="relative w-full h-[106px]">
+    <div className="relative min-w-0 w-full overflow-visible">
       <div
-        className={`border rounded-xl p-2.5 sm:p-3 cursor-pointer transition-all duration-150 hover:shadow-lg relative h-full flex flex-col justify-between ${bg} ${
+        className={`border rounded-lg p-1.5 cursor-pointer transition-all duration-150 hover:shadow-md hover:scale-[1.02] active:scale-95 flex flex-col justify-between gap-1 min-w-0 w-full overflow-hidden select-none ${bg} ${
           isFemaleRoom
             ? 'border-pink-500/60 hover:border-pink-400 ring-1 ring-pink-500/35 bg-pink-950/25'
             : isMaleRoom
@@ -439,67 +440,54 @@ function HeatmapRoomCell({
         onClick={() => onClickRoom(ktx, building, room)}
         onMouseEnter={() => setShowTooltip(true)}
         onMouseLeave={() => setShowTooltip(false)}
+        title={fullTooltip}
       >
-        {/* Hàng 1: Số phòng bên trái, Nhãn Nam/Nữ bên phải */}
-        <div className="flex items-center justify-between gap-1.5 min-w-0">
-          <span className="text-xs sm:text-sm font-black text-white tracking-tight font-tabular">
-            P.{room}
-          </span>
+        {/* Dòng 1: Chấm trạng thái + Tên phòng P.1 bên trái, Icon giới tính bên phải */}
+        <div className="flex items-center justify-between gap-1 min-w-0">
+          <div className="flex items-center gap-1 min-w-0 truncate">
+            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dot}`} />
+            <span className="text-xs font-bold text-white tracking-tight tabular-nums truncate">
+              P.{room}
+            </span>
+          </div>
 
-          {/* Nhãn giới tính (Nam / Nữ / Hỗn hợp / Tự động) */}
+          {/* Biểu tượng giới tính CHỈ LÀ ICON/KÝ HIỆU (♂ / ♀ / ⚡ / •) */}
           <div className="relative shrink-0">
             <button
               type="button"
               onClick={handleGenderTagClick}
-              title="Nhấp để đổi công năng: Phòng Nam / Phòng Nữ / Tự động"
-              className={`text-[10px] sm:text-[11px] font-bold px-1.5 py-0.5 rounded transition-transform active:scale-95 inline-flex items-center gap-1 shrink-0 shadow-sm leading-none whitespace-nowrap ${
+              title={`Đổi công năng: ${isFemaleRoom ? 'Phòng Nữ' : isMaleRoom ? 'Phòng Nam' : isMixedRoom ? 'Hỗn hợp' : 'Tự động'}`}
+              className={`text-[10px] font-bold w-4 h-4 rounded transition-transform active:scale-90 inline-flex items-center justify-center shrink-0 leading-none ${
                 isFemaleRoom
-                  ? 'bg-pink-500/25 text-pink-300 border border-pink-500/50 shadow-pink-500/20 hover:bg-pink-500/35'
+                  ? 'bg-pink-500/25 text-pink-300 border border-pink-500/50 shadow-sm shadow-pink-500/20'
                   : isMaleRoom
-                  ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40 hover:bg-blue-500/35'
+                  ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
                   : isMixedRoom
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/35'
-                  : 'bg-gray-800 text-gray-400 border border-gray-700 hover:bg-gray-750 hover:text-gray-300'
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                  : 'bg-gray-800 text-gray-400 border border-gray-700 hover:bg-gray-750'
               }`}
             >
-              {isFemaleRoom ? (
-                <>
-                  <span className="font-extrabold text-pink-300">♀</span>
-                  <span>Phòng Nữ</span>
-                </>
-              ) : isMaleRoom ? (
-                <>
-                  <span className="font-extrabold text-blue-300">♂</span>
-                  <span>Phòng Nam</span>
-                </>
-              ) : isMixedRoom ? (
-                <span>Hỗn hợp</span>
-              ) : (
-                <>
-                  <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
-                  <span>{genderInfo.isCustom ? 'Gán' : 'Tự động'}</span>
-                </>
-              )}
+              {isFemaleRoom ? '♀' : isMaleRoom ? '♂' : isMixedRoom ? '⚡' : '•'}
             </button>
 
-            {/* Popover đổi nhanh công năng phòng */}
+            {/* Quick Admin Gender Popover */}
             {showMenu && (
               <div
                 ref={menuRef}
                 onClick={e => e.stopPropagation()}
-                className="absolute right-0 top-full mt-1.5 z-40 w-44 rounded-xl bg-gray-900 border border-gray-700 shadow-2xl p-1.5 space-y-1 backdrop-blur-md"
+                className="absolute right-0 top-full mt-1 z-50 w-36 rounded-xl bg-gray-900 border border-gray-700 shadow-2xl p-1 space-y-1 backdrop-blur-md"
               >
-                <div className="px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-gray-400 border-b border-gray-800 pb-1 mb-1">
+                <div className="px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-gray-400 border-b border-gray-800 pb-0.5 mb-0.5">
                   Đổi công năng P.{room}
                 </div>
                 <button
                   type="button"
                   onClick={(e) => handleSelectGender(e, 'male')}
-                  className={`w-full text-left px-2 py-1.5 rounded-lg text-xs font-bold flex items-center justify-between transition-colors ${
+                  className={`w-full text-left px-2 py-1 rounded-lg text-xs font-bold flex items-center justify-between transition-colors ${
                     isMaleRoom ? 'bg-blue-600 text-white shadow-sm' : 'text-blue-300 hover:bg-blue-500/20'
                   }`}
                 >
-                  <span className="flex items-center gap-1.5">
+                  <span className="flex items-center gap-1">
                     <span>♂</span>
                     <span>Phòng Nam</span>
                   </span>
@@ -508,11 +496,11 @@ function HeatmapRoomCell({
                 <button
                   type="button"
                   onClick={(e) => handleSelectGender(e, 'female')}
-                  className={`w-full text-left px-2 py-1.5 rounded-lg text-xs font-bold flex items-center justify-between transition-colors ${
+                  className={`w-full text-left px-2 py-1 rounded-lg text-xs font-bold flex items-center justify-between transition-colors ${
                     isFemaleRoom ? 'bg-pink-600 text-white shadow-sm' : 'text-pink-300 hover:bg-pink-500/20'
                   }`}
                 >
-                  <span className="flex items-center gap-1.5">
+                  <span className="flex items-center gap-1">
                     <span>♀</span>
                     <span>Phòng Nữ</span>
                   </span>
@@ -521,9 +509,9 @@ function HeatmapRoomCell({
                 <button
                   type="button"
                   onClick={(e) => handleSelectGender(e, 'auto')}
-                  className="w-full text-left px-2 py-1.5 rounded-lg text-[11px] font-medium text-gray-400 hover:text-white hover:bg-gray-800 transition-colors flex items-center justify-between"
+                  className="w-full text-left px-2 py-1 rounded-lg text-[11px] font-medium text-gray-400 hover:text-white hover:bg-gray-800 transition-colors flex items-center justify-between"
                 >
-                  <span className="flex items-center gap-1.5">
+                  <span className="flex items-center gap-1">
                     <span>⚡</span>
                     <span>Tự động</span>
                   </span>
@@ -534,32 +522,14 @@ function HeatmapRoomCell({
           </div>
         </div>
 
-        {/* Hàng 2: Tỷ lệ số lượng (18/20 · 90%) */}
-        <div className="flex items-baseline justify-between font-tabular my-0.5">
-          <span className="text-xs sm:text-sm font-extrabold text-white tracking-tight">
+        {/* Dòng 2: Số lượng (20/20) bên trái, Tỷ lệ % (100%) bên phải */}
+        <div className="flex items-center justify-between gap-1 min-w-0 font-tabular">
+          <span className="text-[11px] font-semibold text-gray-200 tabular-nums truncate">
             {count}/{capacity}
           </span>
-          <span className="text-[10px] font-bold text-gray-400">
+          <span className="text-[10px] text-gray-400 opacity-80 shrink-0 font-medium">
             {occupancyPercent}%
           </span>
-        </div>
-
-        {/* Hàng 3: Trạng thái (Còn trống / Đầy 100% / Quá tải) & Đơn vị thi công */}
-        <div className="flex items-center justify-between gap-1 pt-1 border-t border-gray-700/50 min-w-0">
-          <div className="flex items-center gap-1.5 min-w-0 shrink-0">
-            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dot}`} />
-            <span className={`text-[10px] sm:text-[11px] font-semibold whitespace-nowrap leading-none ${textColor}`}>
-              {label}
-            </span>
-          </div>
-          {unitName && (
-            <span
-              className="text-[9px] font-bold text-sky-300 bg-sky-500/20 border border-sky-500/30 rounded px-1 py-0.2 leading-tight truncate max-w-[65px]"
-              title={`Đơn vị thi công: ${unitName}`}
-            >
-              {unitName}
-            </span>
-          )}
         </div>
       </div>
 
@@ -593,20 +563,20 @@ function BlockTitle({
   const staffLabel = assigned ? `Phụ trách: ${assigned.staffName}` : 'Chưa gán';
 
   return (
-    <div className="mb-3">
-      <div className="flex items-center justify-between mb-1">
-        <div className="flex flex-col gap-0.5">
-          <span className="text-sm font-bold text-white">{building}</span>
-          <span className={`text-[11px] font-medium flex items-center gap-1 ${assigned ? 'text-blue-400' : 'text-gray-400'}`}>
-            <GitBranch size={10} />
-            {staffLabel}
+    <div className="mb-2.5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-1.5 min-w-0">
+        <div className="flex items-baseline gap-2 min-w-0 flex-1">
+          <span className="text-sm font-bold text-white shrink-0">{building}</span>
+          <span className={`text-[11px] font-medium flex items-center gap-1 min-w-0 truncate ${assigned ? 'text-blue-400' : 'text-gray-400'}`} title={staffLabel}>
+            <GitBranch size={10} className="shrink-0" />
+            <span className="truncate">{staffLabel}</span>
           </span>
         </div>
-        <span className="text-xs text-gray-400 font-tabular">
+        <span className="text-xs text-gray-400 font-tabular font-medium shrink-0 self-end sm:self-auto">
           {buildingWorkerCount}/{totalCap} · {Math.round(occupancyPct * 100)}% đầy
         </span>
       </div>
-      <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
+      <div className="w-full h-1.5 sm:h-2 bg-gray-700/80 rounded-full overflow-hidden">
         <div className={`h-full rounded-full transition-all duration-300 ${barColor}`} style={{ width: `${Math.min(occupancyPct * 100, 100)}%` }} />
       </div>
     </div>
@@ -1517,7 +1487,7 @@ export default function OccupancyDashboardPage() {
                           );
                         })()}
                       </div>
-                      <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-5 sm:gap-6 min-w-0 w-full items-start">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6 min-w-0 w-full items-start">
                         {ktxBuildings.map(building => {
                           const buildingWorkers = ktxWorkers.filter(w => w.day === building);
                           const rooms = getUniqueRooms(ktxWorkers, building);
@@ -1525,7 +1495,7 @@ export default function OccupancyDashboardPage() {
                           const occupancyPct = totalCap > 0 ? buildingWorkers.length / totalCap : 0;
                           const barColor = occupancyPct > 1 ? 'bg-rose-500' : occupancyPct >= 1 ? 'bg-amber-400' : occupancyPct >= 0.5 ? 'bg-emerald-400' : 'bg-blue-400';
                           return (
-                            <div key={building} className="rounded-2xl bg-gray-900/60 border border-gray-800/90 p-4 sm:p-5 flex flex-col justify-start shadow-md hover:border-gray-700/80 transition-all h-auto self-start">
+                            <div key={building} className="rounded-2xl bg-gray-900/60 border border-gray-800/90 p-3 sm:p-4 flex flex-col justify-start shadow-md hover:border-gray-700/80 transition-all h-auto self-start">
                               <BlockTitle
                                 ktx={ktx}
                                 building={building}
@@ -1535,7 +1505,7 @@ export default function OccupancyDashboardPage() {
                                 occupancyPct={occupancyPct}
                                 barColor={barColor}
                               />
-                              <div className="grid grid-cols-[repeat(auto-fill,minmax(130px,1fr))] gap-2.5 sm:gap-3 mt-3 items-stretch">
+                              <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-[repeat(auto-fill,minmax(88px,1fr))] sm:gap-2 mt-2.5 items-start">
                                 {rooms.map(room => {
                                   const roomWorkers = buildingWorkers.filter(w => w.phongSo === room);
                                   const roomKey = `${ktx}||${building}||${room}`;

@@ -234,8 +234,8 @@ export default function RoomDrawer({
       {/* Backdrop */}
       <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
-      {/* Drawer */}
-      <div className="fixed right-0 top-0 h-full z-50 w-full max-w-md bg-[#1F2937] border-l border-gray-700/80 text-white shadow-2xl flex flex-col animate-slide-in-right">
+      {/* Drawer / Bottom Sheet on Mobile */}
+      <div className="fixed inset-x-0 bottom-0 max-h-[85vh] sm:max-h-full sm:top-0 sm:right-0 sm:left-auto sm:inset-x-auto sm:h-full z-50 w-full sm:max-w-md bg-[#1F2937] border-t sm:border-t-0 sm:border-l border-gray-700/80 text-white shadow-2xl flex flex-col rounded-t-2xl sm:rounded-none overflow-hidden animate-slide-in-right">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-700/80 bg-gray-900/60">
           <div>
