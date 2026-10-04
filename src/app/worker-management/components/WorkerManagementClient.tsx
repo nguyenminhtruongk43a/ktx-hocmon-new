@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { toast } from 'sonner';
-import { Worker, getProfileStatus, calcSoNgay, ROOM_CAPACITY } from '@/data/workers';
+import { Worker, getProfileStatus, calcSoNgay, ROOM_CAPACITY, removeAccents } from '@/data/workers';
 import WorkerTable from './WorkerTable';
 import WorkerFilters from './WorkerFilters';
 import WorkerFormModal from './WorkerFormModal';
@@ -1051,21 +1051,31 @@ export function WorkerManagementClient() {
 
   const filtered = useMemo(() => {
     let list = [...workers];
-    const s = filters.search.toLowerCase();
-    if (s) list = list.filter(w =>
-      w.hoVaTen.toLowerCase().includes(s) || w.maNV.toLowerCase().includes(s) ||
-      w.cccd.toLowerCase().includes(s) || w.soDienThoai.includes(s) ||
-      (w.toTruong || '').toLowerCase().includes(s)
-    );
+    const s = removeAccents(filters.search);
+    if (s) {
+      list = list.filter(w =>
+        removeAccents(w.hoVaTen).includes(s) ||
+        removeAccents(w.maNV).includes(s) ||
+        removeAccents(w.cccd || '').includes(s) ||
+        removeAccents(w.soDienThoai || '').includes(s) ||
+        removeAccents(w.toTruong || '').includes(s) ||
+        removeAccents(w.day || '').includes(s) ||
+        removeAccents(w.phongSo || '').includes(s) ||
+        removeAccents(w.hoKhauTinh || '').includes(s)
+      );
+    }
     if (filters.ktx) list = list.filter(w => w.ktx === filters.ktx);
     if (filters.building) list = list.filter(w => w.day === filters.building);
     if (filters.room) list = list.filter(w => w.phongSo === filters.room);
     if (filters.platoon === '__none__') list = list.filter(w => !w.tieuDoan);
     else if (filters.platoon) list = list.filter(w => w.tieuDoan === filters.platoon);
     if (filters.profileStatus) list = list.filter(w => getProfileStatus(w) === filters.profileStatus);
-    // Tổ Trưởng filter: exact match from dropdown
-    if (filters.toTruong) list = list.filter(w => w.toTruong === filters.toTruong);
-    if (filters.province) list = list.filter(w => w.hoKhauTinh.toLowerCase().includes(filters.province.toLowerCase()));
+    // Tổ Trưởng filter: exact match or accent-insensitive match
+    if (filters.toTruong) {
+      const target = removeAccents(filters.toTruong);
+      list = list.filter(w => removeAccents(w.toTruong || '') === target || removeAccents(w.toTruong || '').includes(target));
+    }
+    if (filters.province) list = list.filter(w => removeAccents(w.hoKhauTinh || '').includes(removeAccents(filters.province)));
     if (filters.tamTruStatus) list = list.filter(w => (w.tamTruStatus || 'unregistered') === filters.tamTruStatus);
     list.sort((a, b) => {
       const av = String(a[sortKey] ?? '');

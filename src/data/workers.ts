@@ -69,6 +69,27 @@ export function compareKtxNames(a: string, b: string): number {
   return a.localeCompare(b, 'vi', { numeric: true, sensitivity: 'base' });
 }
 
+/** Remove Vietnamese accents and convert 'đ'/'Đ' to 'd'/'D' for accent-insensitive search */
+export function removeAccents(str: string): string {
+  if (!str) return '';
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[đĐ]/g, m => (m === 'đ' ? 'd' : 'D'))
+    .toLowerCase();
+}
+
+/** Extract clean, unique, non-junk team leader (Tổ Trưởng) names sorted in Vietnamese alphabetical order */
+export function getUniqueToTruongList(workers: Worker[] = WORKERS): string[] {
+  const set = new Set<string>();
+  (workers || []).forEach(w => {
+    const raw = (w.toTruong || '').trim();
+    if (!raw || raw === '0' || raw === 'null' || raw === 'undefined' || raw === '—' || raw === '-') return;
+    set.add(raw);
+  });
+  return Array.from(set).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true, sensitivity: 'base' }));
+}
+
 export function getUniqueKTX(workers: Worker[] = WORKERS): string[] {
   return [...new Set(workers.map(w => w.ktx?.trim()).filter(Boolean) as string[])].sort(compareKtxNames);
 }
