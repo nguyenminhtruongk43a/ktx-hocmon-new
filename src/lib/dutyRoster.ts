@@ -24,8 +24,6 @@ export interface SpecialistWithDuty {
   status: 'on_duty' | 'off_duty';
 }
 
-export const COMMON_KTX_OPTIONS = ['KTX 1', 'KTX 2', 'KTX 3'];
-
 /**
  * Returns today's date formatted as YYYY-MM-DD in Vietnam timezone (Asia/Ho_Chi_Minh)
  */

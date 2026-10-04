@@ -7,6 +7,8 @@ import {
   AlertCircle, CheckCircle2, Download, Trash2, Filter
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { useKtxStructure } from '@/lib/ktxStructure';
+import { compareKtxNames } from '@/data/workers';
 
 interface FacilityRow {
   id: string;
@@ -271,6 +273,7 @@ function AddRoomModal({ activeKtx, ktxOptions, onSave, onClose, saving }: {
   onClose: () => void;
   saving: boolean;
 }) {
+  const { ktxNames } = useKtxStructure();
   const [form, setForm] = useState<Omit<FacilityRow, 'id'>>({
     ktx: activeKtx, day: '', phong_khu_vuc: '', giuong: 0, dieu_hoa: 0, tu: 0,
     quat: 0, o_cam_dien: 0, remote: 0, bong_tuyp: 0, ban_an: 0, ghe_an: 0, ghi_chu: ''
@@ -278,7 +281,7 @@ function AddRoomModal({ activeKtx, ktxOptions, onSave, onClose, saving }: {
   const [newKtxInput, setNewKtxInput] = useState('');
   const canSave = form.day.trim() && form.phong_khu_vuc.trim() && form.ktx.trim();
 
-  const allKtxChoices = Array.from(new Set([...ktxOptions, 'KTX 1', 'KTX 2', 'KTX 3'])).sort();
+  const allKtxChoices = Array.from(new Set([...ktxOptions, ...ktxNames])).sort(compareKtxNames);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">

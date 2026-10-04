@@ -1,23 +1,11 @@
 'use client';
-import React, { useState, useEffect, useCallback } from 'react';
+
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth, UserRole } from '@/context/AuthContext';
 import { createClient, normalizeSupabaseUrl } from '@/lib/supabase/client';
-import { UserPlus, Pencil, Trash2, Shield, ShieldCheck, RefreshCw, AlertCircle, CheckCircle } from 'lucide-react';
-
-// All possible blocks grouped by KTX — stored as "KTX 1 - Dãy 1" format
-const KTX_BLOCK_GROUPS: { ktx: string; color: 'blue' | 'orange'; blocks: string[] }[] = [
-  {
-    ktx: 'KTX 1',
-    color: 'blue',
-    blocks: ['KTX 1 - Dãy 1', 'KTX 1 - Dãy 2', 'KTX 1 - Dãy 3', 'KTX 1 - Dãy 4', 'KTX 1 - Dãy 5', 'KTX 1 - Dãy 6'],
-  },
-  {
-    ktx: 'KTX 2',
-    color: 'orange',
-    blocks: ['KTX 2 - Dãy 1', 'KTX 2 - Dãy 2', 'KTX 2 - Dãy 3', 'KTX 2 - Dãy 4', 'KTX 2 - Dãy 5', 'KTX 2 - Dãy 6'],
-  },
-];
+import { UserPlus, Pencil, Trash2, Shield, ShieldCheck, RefreshCw, AlertCircle, CheckCircle, Building2 } from 'lucide-react';
+import { useKtxStructure, KtxBlockGroup } from '@/lib/ktxStructure';
 
 interface ProfileRecord {
   id: string;
@@ -47,7 +35,9 @@ function Toast({ message, type, onClose }: { message: string; type: 'success' | 
 
   return (
     <div className={`fixed top-4 right-4 z-[100] flex items-start gap-3 px-4 py-3 rounded-xl shadow-lg border max-w-sm ${
-      type === 'success' ?'bg-green-50 border-green-200 text-green-800 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300' :'bg-red-50 border-red-200 text-red-800 dark:bg-red-900/30 dark:border-red-700 dark:text-red-300'
+      type === 'success'
+        ? 'bg-green-50 border-green-200 text-green-800 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300'
+        : 'bg-red-50 border-red-200 text-red-800 dark:bg-red-900/30 dark:border-red-700 dark:text-red-300'
     }`}>
       {type === 'success' ? <CheckCircle size={18} className="flex-shrink-0 mt-0.5" /> : <AlertCircle size={18} className="flex-shrink-0 mt-0.5" />}
       <p className="text-sm font-medium leading-snug">{message}</p>
@@ -60,6 +50,7 @@ export default function UserManagementClient() {
   const { isAdmin, currentUser } = useAuth();
   const router = useRouter();
   const supabase = createClient();
+  const { ktxGroups, reload: reloadKtxStructure } = useKtxStructure();
 
   const [profiles, setProfiles] = useState<ProfileRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -109,8 +100,9 @@ export default function UserManagementClient() {
   useEffect(() => {
     if (isAdmin) {
       loadProfiles();
+      reloadKtxStructure();
     }
-  }, [isAdmin, loadProfiles]);
+  }, [isAdmin, loadProfiles, reloadKtxStructure]);
 
   // Route protection
   if (!isAdmin) {
@@ -162,7 +154,7 @@ export default function UserManagementClient() {
     });
   };
 
-  const toggleKtxGroup = (group: typeof KTX_BLOCK_GROUPS[0]) => {
+  const toggleKtxGroup = (group: KtxBlockGroup) => {
     const allChecked = group.blocks.every(b => (form.assigned_blocks ?? []).includes(b));
     if (allChecked) {
       setForm(f => ({ ...f, assigned_blocks: (f.assigned_blocks ?? []).filter(b => !group.blocks.includes(b)) }));
@@ -254,133 +246,266 @@ export default function UserManagementClient() {
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
-    if (deleteTarget.id === currentUser?.id) {
-      showToast('Không thể xóa tài khoản đang đăng nhập.', 'error');
-      setDeleteTarget(null);
-      return;
-    }
-
+    setSubmitting(true);
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .delete()
-        .eq('id', deleteTarget.id);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        showToast('Phiên đăng nhập đã hết hạn.', 'error');
+        setSubmitting(false);
+        return;
+      }
 
-      if (error) {
-        showToast(`Lỗi xóa tài khoản: ${error.message}`, 'error');
+      const supabaseUrl = normalizeSupabaseUrl(process.env.NEXT_PUBLIC_SUPABASE_URL);
+      const response = await fetch(`${supabaseUrl}/functions/v1/delete-user`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ user_id: deleteTarget.id }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || result.error) {
+        const { error: profileDeleteError } = await supabase
+          .from('profiles')
+          .delete()
+          .eq('id', deleteTarget.id);
+
+        if (profileDeleteError) {
+          showToast(`Lỗi xóa: ${result.error || profileDeleteError.message}`, 'error');
+        } else {
+          setDeleteTarget(null);
+          showToast(`Đã xóa tài khoản ${deleteTarget.full_name}.`, 'success');
+          await loadProfiles();
+        }
       } else {
-        showToast(`Đã xóa tài khoản ${deleteTarget.full_name}.`, 'success');
         setDeleteTarget(null);
+        showToast(`Đã xóa tài khoản ${deleteTarget.full_name} thành công.`, 'success');
         await loadProfiles();
       }
-    } catch {
-      showToast('Không thể xóa tài khoản.', 'error');
+    } catch (err) {
+      showToast(`Lỗi kết nối: ${err instanceof Error ? err.message : 'Không xác định'}`, 'error');
+    } finally {
+      setSubmitting(false);
     }
   };
 
+  // Helper for dynamic colors on badges
+  const getColorClasses = (color: string) => {
+    switch (color) {
+      case 'orange':
+        return {
+          border: 'border-orange-500/30 dark:border-orange-500/40',
+          headerBg: 'bg-orange-500/10 dark:bg-orange-950/40',
+          headerText: 'text-orange-700 dark:text-orange-300',
+          badgeText: 'text-orange-800 dark:text-orange-300',
+          badgeBg: 'bg-orange-100 dark:bg-orange-900/40 border-orange-300 dark:border-orange-700',
+          itemChecked: 'bg-orange-500/20 border-orange-500/50 text-orange-700 dark:text-orange-300 font-semibold',
+        };
+      case 'emerald':
+        return {
+          border: 'border-emerald-500/30 dark:border-emerald-500/40',
+          headerBg: 'bg-emerald-500/10 dark:bg-emerald-950/40',
+          headerText: 'text-emerald-700 dark:text-emerald-300',
+          badgeText: 'text-emerald-800 dark:text-emerald-300',
+          badgeBg: 'bg-emerald-100 dark:bg-emerald-900/40 border-emerald-300 dark:border-emerald-700',
+          itemChecked: 'bg-emerald-500/20 border-emerald-500/50 text-emerald-700 dark:text-emerald-300 font-semibold',
+        };
+      case 'purple':
+        return {
+          border: 'border-purple-500/30 dark:border-purple-500/40',
+          headerBg: 'bg-purple-500/10 dark:bg-purple-950/40',
+          headerText: 'text-purple-700 dark:text-purple-300',
+          badgeText: 'text-purple-800 dark:text-purple-300',
+          badgeBg: 'bg-purple-100 dark:bg-purple-900/40 border-purple-300 dark:border-purple-700',
+          itemChecked: 'bg-purple-500/20 border-purple-500/50 text-purple-700 dark:text-purple-300 font-semibold',
+        };
+      case 'cyan':
+        return {
+          border: 'border-cyan-500/30 dark:border-cyan-500/40',
+          headerBg: 'bg-cyan-500/10 dark:bg-cyan-950/40',
+          headerText: 'text-cyan-700 dark:text-cyan-300',
+          badgeText: 'text-cyan-800 dark:text-cyan-300',
+          badgeBg: 'bg-cyan-100 dark:bg-cyan-900/40 border-cyan-300 dark:border-cyan-700',
+          itemChecked: 'bg-cyan-500/20 border-cyan-500/50 text-cyan-700 dark:text-cyan-300 font-semibold',
+        };
+      case 'amber':
+        return {
+          border: 'border-amber-500/30 dark:border-amber-500/40',
+          headerBg: 'bg-amber-500/10 dark:bg-amber-950/40',
+          headerText: 'text-amber-700 dark:text-amber-300',
+          badgeText: 'text-amber-800 dark:text-amber-300',
+          badgeBg: 'bg-amber-100 dark:bg-amber-900/40 border-amber-300 dark:border-amber-700',
+          itemChecked: 'bg-amber-500/20 border-amber-500/50 text-amber-700 dark:text-amber-300 font-semibold',
+        };
+      case 'rose':
+        return {
+          border: 'border-rose-500/30 dark:border-rose-500/40',
+          headerBg: 'bg-rose-500/10 dark:bg-rose-950/40',
+          headerText: 'text-rose-700 dark:text-rose-300',
+          badgeText: 'text-rose-800 dark:text-rose-300',
+          badgeBg: 'bg-rose-100 dark:bg-rose-900/40 border-rose-300 dark:border-rose-700',
+          itemChecked: 'bg-rose-500/20 border-rose-500/50 text-rose-700 dark:text-rose-300 font-semibold',
+        };
+      default: // blue
+        return {
+          border: 'border-blue-500/30 dark:border-blue-500/40',
+          headerBg: 'bg-blue-500/10 dark:bg-blue-950/40',
+          headerText: 'text-blue-700 dark:text-blue-300',
+          badgeText: 'text-blue-800 dark:text-blue-300',
+          badgeBg: 'bg-blue-100 dark:bg-blue-900/40 border-blue-300 dark:border-blue-700',
+          itemChecked: 'bg-blue-500/20 border-blue-500/50 text-blue-700 dark:text-blue-300 font-semibold',
+        };
+    }
+  };
+
+  // Helper to render assigned blocks grouped by any dynamic KTX
+  const renderAssignedBlocks = (assignedBlocks: string[]) => {
+    if (!assignedBlocks || assignedBlocks.length === 0) {
+      return <span className="text-xs text-amber-600 dark:text-amber-400">Chưa gán dãy</span>;
+    }
+
+    // Group assigned blocks by their prefix (e.g. "KTX 1", "KTX 2", "KTX 3", etc.)
+    const groupedMap = new Map<string, string[]>();
+    assignedBlocks.forEach(b => {
+      if (b.includes(' - ')) {
+        const [ktx, day] = b.split(' - ');
+        if (!groupedMap.has(ktx.trim())) groupedMap.set(ktx.trim(), []);
+        groupedMap.get(ktx.trim())!.push(day.trim());
+      } else {
+        if (!groupedMap.has('Khác')) groupedMap.set('Khác', []);
+        groupedMap.get('Khác')!.push(b);
+      }
+    });
+
+    const entries = Array.from(groupedMap.entries());
+
+    return (
+      <div className="flex flex-col gap-1.5">
+        {entries.map(([ktx, days], idx) => {
+          const colorKey = ktxGroups.find(g => g.ktx === ktx)?.color || (idx % 2 === 0 ? 'blue' : 'orange');
+          const styling = getColorClasses(colorKey);
+
+          return (
+            <div key={ktx} className="flex flex-wrap items-center gap-1">
+              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${styling.headerBg} ${styling.headerText} border ${styling.border}`}>
+                {ktx}:
+              </span>
+              {days.map(d => (
+                <span
+                  key={d}
+                  className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold border ${styling.badgeBg} ${styling.badgeText}`}
+                >
+                  {d}
+                </span>
+              ))}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
-    <div className="p-3 sm:p-6 max-w-6xl mx-auto">
-      {toast && (
-        <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
-      )}
+    <div className="space-y-6">
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 sm:mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-foreground">Quản Lý Tài Khoản</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">Quản lý tài khoản người dùng trong hệ thống</p>
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">Quản lý Tài khoản</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Tạo tài khoản, gán vai trò và phân quyền phụ trách KTX + Dãy</p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+        <div className="flex items-center gap-2">
           <button
-            onClick={loadProfiles}
+            onClick={() => {
+              loadProfiles();
+              reloadKtxStructure();
+            }}
             disabled={loading}
-            className="flex items-center justify-center gap-2 border border-border text-muted-foreground px-3 py-2 rounded-lg text-xs sm:text-sm hover:bg-muted transition-colors disabled:opacity-50 flex-1 sm:flex-initial"
+            className="btn-secondary text-sm flex items-center gap-1.5 cursor-pointer"
+            title="Tải lại danh sách"
           >
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-            Tải lại
+            <span>Làm mới</span>
           </button>
           <button
             onClick={openAdd}
-            className="flex items-center justify-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold hover:opacity-90 transition-opacity flex-1 sm:flex-initial"
+            className="btn-primary text-sm flex items-center gap-1.5 cursor-pointer"
           >
-            <UserPlus size={16} />
-            + Tạo tài khoản mới
+            <UserPlus size={15} />
+            <span>Tạo tài khoản mới</span>
           </button>
         </div>
       </div>
 
-      {/* Tab Filter Bar */}
-      <div className="flex items-center gap-2 mb-4 flex-wrap">
-        {([
-          { key: 'all', label: 'Tất cả', count: profiles.length },
-          { key: 'admin', label: 'Admin', count: profiles.filter(u => u.role === 'admin').length },
-          { key: 'staff', label: 'Staff', count: profiles.filter(u => u.role === 'staff').length },
-        ] as { key: 'all' | 'admin' | 'staff'; label: string; count: number }[]).map(tab => (
+      {/* Main Card */}
+      <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+        {/* Filter Tabs */}
+        <div className="px-6 pt-4 border-b border-border flex items-center gap-2">
           <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-semibold border transition-all duration-150 select-none ${
-              activeTab === tab.key
-                ? 'bg-primary text-primary-foreground border-primary shadow-sm'
-                : 'bg-card text-muted-foreground border-border hover:border-primary/50 hover:text-foreground'
+            onClick={() => setActiveTab('all')}
+            className={`pb-3 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
+              activeTab === 'all' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
           >
-            {tab.label}
-            <span className={`text-xs px-1.5 py-0.5 rounded-full font-tabular ${
-              activeTab === tab.key
-                ? 'bg-primary-foreground/20 text-primary-foreground'
-                : 'bg-muted text-muted-foreground'
-            }`}>
-              {tab.count}
-            </span>
+            Tất cả ({profiles.length})
           </button>
-        ))}
-      </div>
+          <button
+            onClick={() => setActiveTab('admin')}
+            className={`pb-3 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
+              activeTab === 'admin' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Admin ({profiles.filter(p => p.role === 'admin').length})
+          </button>
+          <button
+            onClick={() => setActiveTab('staff')}
+            className={`pb-3 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
+              activeTab === 'staff' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Staff ({profiles.filter(p => p.role === 'staff').length})
+          </button>
+        </div>
 
-      {/* Table */}
-      <div className="bg-card border border-border rounded-xl overflow-hidden">
+        {/* Table */}
         {loading ? (
-          <div className="flex items-center justify-center py-16 gap-3 text-muted-foreground">
-            <RefreshCw size={20} className="animate-spin" />
-            <span className="text-sm">Đang tải danh sách tài khoản...</span>
+          <div className="py-16 text-center text-muted-foreground flex flex-col items-center gap-2">
+            <RefreshCw size={24} className="animate-spin text-primary" />
+            <p className="text-xs">Đang tải danh sách tài khoản...</p>
           </div>
         ) : (
-          <div className="overflow-x-auto scrollbar-thin">
-            <table className="w-full text-sm min-w-[750px]">
-              <thead>
-                <tr className="border-b border-border bg-muted/40 whitespace-nowrap">
-                  <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Họ và tên</th>
-                  <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Email</th>
-                  <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Vai trò</th>
-                  <th className="text-left px-4 py-3 font-semibold text-muted-foreground">KTX + Dãy phụ trách</th>
-                  <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Ngày tạo</th>
-                  <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Hành động</th>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-muted/50 text-muted-foreground text-xs uppercase font-semibold border-b border-border">
+                <tr>
+                  <th className="px-4 py-3">Họ và tên</th>
+                  <th className="px-4 py-3">Email</th>
+                  <th className="px-4 py-3">Vai trò</th>
+                  <th className="px-4 py-3">KTX + Dãy phụ trách</th>
+                  <th className="px-4 py-3">Ngày tạo</th>
+                  <th className="px-4 py-3 w-20">Thao tác</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-border">
                 {filteredProfiles.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-sm text-muted-foreground">
-                      Không có tài khoản nào trong danh mục này.
+                    <td colSpan={6} className="px-4 py-12 text-center text-muted-foreground text-xs">
+                      Không có tài khoản nào.
                     </td>
                   </tr>
                 ) : (
-                  filteredProfiles.map((profile, idx) => (
-                    <tr key={profile.id} className={`border-b border-border last:border-0 hover:bg-muted/20 transition-colors ${idx % 2 === 0 ? '' : 'bg-muted/10'}`}>
-                      <td className="px-4 py-3 whitespace-nowrap min-w-[200px]">
-                        <div className="flex items-center gap-2.5 flex-nowrap whitespace-nowrap">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 ${profile.role === 'admin' ? 'bg-red-500' : 'bg-blue-500'}`}>
-                            {(profile.full_name || profile.email).charAt(0).toUpperCase()}
-                          </div>
-                          <span className="font-medium text-foreground whitespace-nowrap">
-                            {profile.full_name || '—'}
-                            {profile.id === currentUser?.id && (
-                              <span className="ml-1.5 text-xs text-muted-foreground whitespace-nowrap">(bạn)</span>
-                            )}
-                          </span>
-                        </div>
+                  filteredProfiles.map((profile) => (
+                    <tr key={profile.id} className="hover:bg-muted/30 transition-colors">
+                      <td className="px-4 py-3 font-semibold text-foreground whitespace-normal break-words">
+                        {profile.full_name || '—'}
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">{profile.email}</td>
+                      <td className="px-4 py-3 text-muted-foreground text-xs font-mono">
+                        {profile.email}
+                      </td>
                       <td className="px-4 py-3">
                         {profile.role === 'admin' ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
@@ -394,28 +519,9 @@ export default function UserManagementClient() {
                       </td>
                       <td className="px-4 py-3">
                         {profile.role === 'admin' ? (
-                          <span className="text-xs text-muted-foreground italic">Toàn bộ KTX</span>
-                        ) : profile.assigned_blocks && profile.assigned_blocks.length > 0 ? (
-                          <div className="flex flex-col gap-1">
-                            {KTX_BLOCK_GROUPS.map(group => {
-                              const groupBlocks = profile.assigned_blocks.filter(b => b.startsWith(group.ktx));
-                              if (groupBlocks.length === 0) return null;
-                              return (
-                                <div key={group.ktx} className="flex flex-wrap items-center gap-1">
-                                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${group.color === 'blue' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
-                                    {group.ktx}:
-                                  </span>
-                                  {groupBlocks.map(b => (
-                                    <span key={b} className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold border ${group.color === 'blue' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-orange-50 text-orange-700 border-orange-200'}`}>
-                                      {b.replace(`${group.ktx} - `, '')}
-                                    </span>
-                                  ))}
-                                </div>
-                              );
-                            })}
-                          </div>
+                          <span className="text-xs text-muted-foreground italic font-medium">Toàn bộ KTX</span>
                         ) : (
-                          <span className="text-xs text-amber-600">Chưa gán dãy</span>
+                          renderAssignedBlocks(profile.assigned_blocks)
                         )}
                       </td>
                       <td className="px-4 py-3 text-muted-foreground text-xs">
@@ -426,7 +532,7 @@ export default function UserManagementClient() {
                           <button
                             onClick={() => openEdit(profile)}
                             title="Sửa tài khoản"
-                            className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                            className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground cursor-pointer"
                           >
                             <Pencil size={14} />
                           </button>
@@ -434,7 +540,7 @@ export default function UserManagementClient() {
                             onClick={() => setDeleteTarget(profile)}
                             title="Xóa tài khoản"
                             disabled={profile.id === currentUser?.id}
-                            className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-muted-foreground hover:text-red-500 disabled:opacity-30 disabled:cursor-not-allowed"
+                            className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-muted-foreground hover:text-red-500 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
                           >
                             <Trash2 size={14} />
                           </button>
@@ -449,23 +555,31 @@ export default function UserManagementClient() {
         )}
       </div>
 
-      {/* Add/Edit Modal */}
+      {/* Add / Edit Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="px-6 py-4 border-b border-border">
-              <h2 className="text-lg font-bold text-foreground">{editTarget ? 'Sửa tài khoản' : 'Tạo tài khoản mới'}</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-xl max-h-[92vh] flex flex-col my-auto text-foreground overflow-hidden">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-border bg-muted/30 shrink-0">
+              <h2 className="text-lg font-bold text-foreground">
+                {editTarget ? 'Sửa tài khoản' : 'Tạo tài khoản mới'}
+              </h2>
               {!editTarget && (
-                <p className="text-xs text-muted-foreground mt-0.5">Tài khoản sẽ được tạo trong Supabase Auth và lưu vào bảng profiles.</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Tài khoản sẽ được tạo trong Supabase Auth và lưu vào bảng profiles.
+                </p>
               )}
             </div>
-            <div className="px-6 py-4 flex flex-col gap-4">
+
+            {/* Modal Body (Scrollable) */}
+            <div className="px-6 py-4 flex-1 overflow-y-auto space-y-4">
               {formError && (
                 <div className="flex items-start gap-2 text-xs text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-400 px-3 py-2.5 rounded-lg border border-red-200 dark:border-red-800">
                   <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
-                  <span>{formError}</span>
+                  <span className="whitespace-normal break-words">{formError}</span>
                 </div>
               )}
+
               <div>
                 <label className="block text-xs font-semibold text-muted-foreground mb-1">Họ và tên *</label>
                 <input
@@ -475,21 +589,25 @@ export default function UserManagementClient() {
                   onChange={e => setForm(f => ({ ...f, full_name: e.target.value }))}
                 />
               </div>
+
               <div>
                 <label className="block text-xs font-semibold text-muted-foreground mb-1">Email *</label>
                 <input
                   type="email"
                   disabled={!!editTarget}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60 disabled:cursor-not-allowed"
-                  placeholder="email@ktx.com"
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60 disabled:cursor-not-allowed font-mono text-xs sm:text-sm"
+                  placeholder="email@ktx.vn"
                   value={form.email}
                   onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                 />
                 {editTarget && <p className="text-xs text-muted-foreground mt-1">Email không thể thay đổi sau khi tạo.</p>}
               </div>
+
               {!editTarget && (
                 <div>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-1">Mật khẩu * <span className="font-normal">(tối thiểu 6 ký tự)</span></label>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1">
+                    Mật khẩu * <span className="font-normal">(tối thiểu 6 ký tự)</span>
+                  </label>
                   <input
                     type="password"
                     className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
@@ -499,118 +617,184 @@ export default function UserManagementClient() {
                   />
                 </div>
               )}
+
               <div>
                 <label className="block text-xs font-semibold text-muted-foreground mb-1">Vai trò</label>
                 <select
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 cursor-pointer"
                   value={form.role}
                   onChange={e => setForm(f => ({ ...f, role: e.target.value as UserRole }))}
                 >
                   <option value="staff">Staff (Bảo vệ / Quản lý dãy)</option>
-                  <option value="admin">Admin (Toàn quyền)</option>
+                  <option value="admin">Admin (Toàn quyền quản trị)</option>
                 </select>
               </div>
 
-              {/* Assigned Blocks — grouped by KTX, only for staff */}
+              {/* Dynamic Assigned Blocks Section — grouped by all dynamic KTXs */}
               {form.role === 'staff' && (
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-2">
-                    Phân quyền theo KTX + Dãy{' '}
-                    <span className="font-normal text-muted-foreground">(Staff chỉ Thêm/Sửa/Xóa công nhân ở tổ hợp được gán)</span>
-                  </label>
-                  <div className="flex flex-col gap-3">
-                    {KTX_BLOCK_GROUPS.map(group => {
-                      const checkedCount = group.blocks.filter(b => (form.assigned_blocks ?? []).includes(b)).length;
-                      const allChecked = checkedCount === group.blocks.length;
-                      const someChecked = checkedCount > 0 && !allChecked;
-                      return (
-                        <div key={group.ktx} className={`border rounded-xl overflow-hidden ${group.color === 'blue' ? 'border-blue-200' : 'border-orange-200'}`}>
-                          {/* KTX Group Header with "Select All" checkbox */}
-                          <div className={`flex items-center gap-2.5 px-3 py-2.5 ${group.color === 'blue' ? 'bg-blue-50' : 'bg-orange-50'}`}>
-                            <input
-                              type="checkbox"
-                              checked={allChecked}
-                              ref={el => { if (el) el.indeterminate = someChecked; }}
-                              onChange={() => toggleKtxGroup(group)}
-                              className="accent-primary w-4 h-4 cursor-pointer"
-                            />
-                            <span className={`text-sm font-bold ${group.color === 'blue' ? 'text-blue-700' : 'text-orange-700'}`}>
-                              {group.ktx}
-                            </span>
-                            <span className="text-xs text-muted-foreground ml-auto">
-                              {checkedCount}/{group.blocks.length} dãy được chọn
-                            </span>
-                          </div>
-                          {/* Individual block checkboxes */}
-                          <div className="grid grid-cols-3 gap-2 p-3">
-                            {group.blocks.map(block => {
-                              const checked = (form.assigned_blocks ?? []).includes(block);
-                              const dayLabel = block.replace(`${group.ktx} - `, '');
-                              return (
-                                <label
-                                  key={block}
-                                  className={`flex items-center gap-2 px-2.5 py-2 rounded-lg border cursor-pointer transition-all text-xs select-none ${
-                                    checked
-                                      ? group.color === 'blue' ?'bg-blue-100 border-blue-400 text-blue-700 font-semibold' :'bg-orange-100 border-orange-400 text-orange-700 font-semibold' :'bg-background border-border text-muted-foreground hover:border-primary/40'
-                                  }`}
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={checked}
-                                    onChange={() => toggleBlock(block)}
-                                    className="accent-primary w-3.5 h-3.5"
-                                  />
-                                  {dayLabel}
-                                </label>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })}
+                <div className="pt-2 border-t border-border">
+                  <div className="flex items-center justify-between mb-2 flex-wrap gap-1">
+                    <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                      <Building2 size={14} className="text-primary" />
+                      <span>Phân quyền phụ trách KTX + Dãy</span>
+                    </label>
+                    <span className="text-[11px] text-muted-foreground">
+                      (Staff chỉ Thêm/Sửa/Xóa công nhân ở tổ hợp được chọn)
+                    </span>
                   </div>
+
+                  {/* Container for All KTX Groups */}
+                  {ktxGroups.length === 0 ? (
+                    <div className="p-4 rounded-xl border border-dashed border-amber-300 dark:border-amber-700/60 bg-amber-50/50 dark:bg-amber-950/20 text-center space-y-2">
+                      <p className="text-xs text-amber-700 dark:text-amber-300 font-medium">
+                        Chưa có dữ liệu KTX/Dãy, hãy nhập phòng trước
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => reloadKtxStructure(true)}
+                        className="btn-secondary text-xs px-3 py-1.5 inline-flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <RefreshCw size={13} />
+                        <span>Tải lại dữ liệu</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3 max-h-[340px] overflow-y-auto pr-1">
+                      {ktxGroups.map((group) => {
+                        const styling = getColorClasses(group.color);
+                        const checkedCount = group.blocks.filter(b => (form.assigned_blocks ?? []).includes(b)).length;
+                        const allChecked = group.blocks.length > 0 && checkedCount === group.blocks.length;
+                        const someChecked = checkedCount > 0 && !allChecked;
+
+                        return (
+                          <div
+                            key={group.ktx}
+                            className={`shrink-0 border rounded-xl overflow-hidden transition-all ${styling.border} bg-card`}
+                          >
+                            {/* KTX Header with "Select All" Checkbox */}
+                            <div className={`flex items-center gap-2.5 px-3 py-2 ${styling.headerBg} border-b ${styling.border}`}>
+                              <input
+                                type="checkbox"
+                                disabled={group.blocks.length === 0}
+                                checked={allChecked}
+                                ref={el => {
+                                  if (el) el.indeterminate = someChecked;
+                                }}
+                                onChange={() => toggleKtxGroup(group)}
+                                className="accent-primary w-4 h-4 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                              />
+                              <span className={`text-sm font-bold ${styling.headerText}`}>
+                                {group.ktx}
+                              </span>
+                              <span className="text-xs text-muted-foreground ml-auto font-medium">
+                                {group.blocks.length === 0 ? 'Chưa có dãy' : `${checkedCount}/${group.blocks.length} dãy được chọn`}
+                              </span>
+                            </div>
+
+                            {/* Individual Day Checkboxes Grid or Empty Notice */}
+                            {group.blocks.length === 0 ? (
+                              <div className="p-3 bg-muted/10 text-xs text-muted-foreground italic font-medium">
+                                KTX này chưa có dãy, hãy cập nhật dữ liệu
+                              </div>
+                            ) : (
+                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-3 bg-muted/10">
+                                {group.blocks.map(block => {
+                                  const checked = (form.assigned_blocks ?? []).includes(block);
+                                  const dayLabel = block.replace(`${group.ktx} - `, '');
+
+                                  return (
+                                    <label
+                                      key={block}
+                                      className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border cursor-pointer transition-all text-xs select-none ${
+                                        checked
+                                          ? styling.itemChecked
+                                          : 'bg-background border-border text-muted-foreground hover:border-primary/40'
+                                      }`}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={checked}
+                                        onChange={() => toggleBlock(block)}
+                                        className="accent-primary w-3.5 h-3.5 cursor-pointer"
+                                      />
+                                      <span className="font-medium">{dayLabel}</span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
                   {(form.assigned_blocks ?? []).length === 0 && (
-                    <p className="text-xs text-amber-600 mt-2">⚠ Chưa gán dãy — Staff này sẽ không thể Thêm/Sửa/Xóa công nhân nào.</p>
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 font-medium">
+                      ⚠ Chưa gán dãy — Staff này sẽ không thể Thêm/Sửa/Xóa công nhân nào.
+                    </p>
                   )}
                   {(form.assigned_blocks ?? []).length > 0 && (
-                    <p className="text-xs text-green-700 mt-2">
+                    <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-2 font-medium">
                       ✓ Đã gán {(form.assigned_blocks ?? []).length} tổ hợp KTX + Dãy
                     </p>
                   )}
                 </div>
               )}
             </div>
-            <div className="px-6 py-4 border-t border-border flex justify-end gap-2">
-              <button onClick={() => setShowModal(false)} disabled={submitting} className="btn-secondary text-sm">Hủy</button>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-border bg-muted/20 flex justify-end gap-2 shrink-0">
               <button
+                type="button"
+                onClick={() => setShowModal(false)}
+                disabled={submitting}
+                className="btn-secondary text-sm cursor-pointer"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
                 onClick={handleSubmit}
                 disabled={submitting}
-                className="btn-primary text-sm flex items-center gap-2 disabled:opacity-60"
+                className="btn-primary text-sm flex items-center gap-1.5 cursor-pointer"
               >
-                {submitting && <RefreshCw size={14} className="animate-spin" />}
-                {editTarget ? 'Lưu thay đổi' : 'Tạo tài khoản'}
+                {submitting ? (
+                  <>
+                    <RefreshCw size={14} className="animate-spin" />
+                    <span>Đang lưu...</span>
+                  </>
+                ) : (
+                  <span>{editTarget ? 'Lưu thay đổi' : 'Tạo tài khoản'}</span>
+                )}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Delete Confirm Modal */}
+      {/* Delete Confirmation Modal */}
       {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-sm">
-            <div className="px-6 py-5">
-              <h2 className="text-base font-bold text-foreground mb-2">Xác nhận xóa tài khoản</h2>
-              <p className="text-sm text-muted-foreground">
-                Bạn có chắc muốn xóa tài khoản <span className="font-semibold text-foreground">{deleteTarget.full_name}</span>?
-                <br />
-                <span className="text-xs text-amber-600 dark:text-amber-400 mt-1 block">Lưu ý: Hành động này chỉ xóa hồ sơ phân quyền, không xóa tài khoản Auth.</span>
-              </p>
-            </div>
-            <div className="px-6 py-4 border-t border-border flex justify-end gap-2">
-              <button onClick={() => setDeleteTarget(null)} className="btn-secondary text-sm">Hủy</button>
-              <button onClick={handleDelete} className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
-                Xóa tài khoản
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+            <h3 className="text-lg font-bold text-foreground">Xác nhận xóa tài khoản</h3>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Bạn có chắc chắn muốn xóa tài khoản <strong>{deleteTarget.full_name}</strong> ({deleteTarget.email})? Thao tác này không thể hoàn tác.
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                disabled={submitting}
+                className="btn-secondary text-sm cursor-pointer"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={submitting}
+                className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold text-sm transition-colors cursor-pointer"
+              >
+                {submitting ? 'Đang xóa...' : 'Xóa tài khoản'}
               </button>
             </div>
           </div>

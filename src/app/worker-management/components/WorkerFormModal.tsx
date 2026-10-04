@@ -1,8 +1,9 @@
 'use client';
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
-import { Worker, calcSoNgay } from '@/data/workers';
+import { Worker, calcSoNgay, compareKtxNames } from '@/data/workers';
 import { X, Loader2, Save, ScanLine, CheckCircle2, Camera, AlertTriangle, Check, RefreshCw } from 'lucide-react';
+import { useKtxStructure, compareDayNames } from '@/lib/ktxStructure';
 
 interface Props {
   worker: Worker | null;
@@ -488,21 +489,38 @@ export default function WorkerFormModal({ worker, onSave, onClose, allWorkers = 
   const [scanSuccess, setScanSuccess] = useState(false);
   const isEdit = !!worker;
 
-  const ktxList = [...new Set(allWorkers.map(w => w.ktx).filter(Boolean))].sort();
-  const dayList = [...new Set(allWorkers.map(w => w.day).filter(Boolean))].sort();
+  const { ktxGroups, ktxNames } = useKtxStructure();
+
+  const allAvailableDays = useMemo(() => {
+    const set = new Set<string>();
+    ktxGroups.forEach(g => g.days.forEach(d => set.add(d)));
+    allWorkers.forEach(w => { if (w.day) set.add(w.day); });
+    return Array.from(set).sort(compareDayNames);
+  }, [ktxGroups, allWorkers]);
+
+  const ktxList = useMemo(() => {
+    const set = new Set<string>(ktxNames);
+    allWorkers.forEach(w => { if (w.ktx) set.add(w.ktx); });
+    return Array.from(set).sort(compareKtxNames);
+  }, [ktxNames, allWorkers]);
+
+  const dayList = allAvailableDays;
   const platoonList = [...new Set(allWorkers.map(w => w.tieuDoan).filter(Boolean))].sort();
+
+  const defaultKtxVal = ktxList[0] || '';
+  const defaultDayVal = dayList[0] || '';
 
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<FormData>({
     defaultValues: worker ? {
       hoVaTen: worker.hoVaTen, maNV: worker.maNV, tieuDoan: worker.tieuDoan,
-      ktx: worker.ktx || 'KTX 2', donVi: worker.donVi || 'XD',
+      ktx: worker.ktx || defaultKtxVal, donVi: worker.donVi || 'XD',
       gioiTinh: worker.gioiTinh || 'Nam', ngaySinh: worker.ngaySinh,
       soDienThoai: worker.soDienThoai, day: worker.day, phongSo: worker.phongSo,
       giuong: worker.giuong, cccd: worker.cccd, hoKhauTinh: worker.hoKhauTinh,
       toTruong: worker.toTruong, sdtToTruong: worker.sdtToTruong,
       ngayVaoKTX: worker.ngayVaoKTX, ngayRaKTX: worker.ngayRaKTX, ghiChu: worker.ghiChu,
       avatar: worker.avatar,
-    } : { ktx: 'KTX 2', donVi: 'XD', gioiTinh: 'Nam', day: dayList[0] || 'Dãy 3', phongSo: '1' },
+    } : { ktx: defaultKtxVal, donVi: 'XD', gioiTinh: 'Nam', day: defaultDayVal, phongSo: '1' },
   });
 
   const watchedCheckIn = watch('ngayVaoKTX');

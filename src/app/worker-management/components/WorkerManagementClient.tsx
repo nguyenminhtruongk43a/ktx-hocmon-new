@@ -14,6 +14,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useAudit } from '@/context/AuditContext';
 import { useWorkers } from '@/context/WorkerContext';
 import { useSearchParams } from 'next/navigation';
+import { useKtxStructure } from '@/lib/ktxStructure';
 
 export interface FilterState {
   search: string;
@@ -151,14 +152,13 @@ function normalizePhong(raw: string): string {
   return trimmed;
 }
 
-/** Normalize KTX value from Excel to standard "KTX 1", "KTX 2", or "KTX 3" */
+/** Normalize KTX value from Excel to standard format (e.g. "KTX 1", "KTX 2", "KTX 10") */
 function normalizeKtxValue(raw: string): string {
   if (!raw) return '';
-  const s = raw.trim().toUpperCase().replace(/\s+/g, ' ');
-  if (s.includes('1') || s === 'KTX1') return 'KTX 1';
-  if (s.includes('2') || s === 'KTX2') return 'KTX 2';
-  if (s.includes('3') || s === 'KTX3') return 'KTX 3';
-  return raw.trim();
+  const s = raw.trim();
+  const match = s.match(/^ktx\s*(\d+)$/i);
+  if (match) return `KTX ${match[1]}`;
+  return s;
 }
 
 /** Parsed row from real Excel file */
@@ -186,6 +186,7 @@ const PREVIEW_HEADERS = ['KTX', 'Họ và Tên', 'Mã NV', 'CCCD', 'SĐT', 'Dãy
 const PREVIEW_PAGE_SIZE = 20;
 
 function ExcelImportModal({ onClose, onImport }: { onClose: () => void; onImport: (rows: Worker[]) => Promise<void> }) {
+  const { ktxNames } = useKtxStructure();
   const [parsedRows, setParsedRows] = useState<ParsedWorkerRow[]>([]);
   const [total, setTotal] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -344,7 +345,7 @@ function ExcelImportModal({ onClose, onImport }: { onClose: () => void; onImport
 
   const getEffectiveKtx = (row: ParsedWorkerRow): string => {
     if (hasKtxColumn && row.ktxFromExcel) return row.ktxFromExcel;
-    return selectedKtx || 'KTX 2';
+    return selectedKtx || (ktxNames[0] || '');
   };
 
   const canConfirm = parsedRows.length > 0 && (hasKtxColumn || selectedKtx !== '');
@@ -411,7 +412,7 @@ function ExcelImportModal({ onClose, onImport }: { onClose: () => void; onImport
               <p className="text-sm font-bold text-foreground">Chọn KTX để nhập dữ liệu <span className="text-red-500">*</span></p>
             </div>
             <div className="flex gap-3 flex-wrap">
-              {['KTX 1', 'KTX 2', 'KTX 3'].map(ktx => (
+              {ktxNames.map(ktx => (
                 <label key={ktx} className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 cursor-pointer transition-all font-semibold text-sm ${selectedKtx === ktx ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-card text-foreground hover:border-primary/50'}`}>
                   <input type="radio" name="ktx-select" value={ktx} checked={selectedKtx === ktx} onChange={() => setSelectedKtx(ktx)} className="hidden" />
                   {ktx}
@@ -493,7 +494,7 @@ function ExcelImportModal({ onClose, onImport }: { onClose: () => void; onImport
                         <tr key={i} className="border-t border-border hover:bg-muted/20">
                           <td className="px-2 py-1.5 text-muted-foreground">{(previewPage - 1) * PREVIEW_PAGE_SIZE + i + 1}</td>
                           <td className="px-2 py-1.5 whitespace-nowrap">
-                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold ${effectiveKtx === 'KTX 1' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold bg-primary/10 text-primary border border-primary/20">
                               {effectiveKtx || '—'}
                             </span>
                           </td>
@@ -562,9 +563,10 @@ function BulkAssignKtxModal({
   onClose: () => void;
   onAssign: (ids: string[], ktx: string) => Promise<void>;
 }) {
+  const { ktxNames } = useKtxStructure();
   const noKtxWorkers = useMemo(() => workers.filter(w => !w.ktx || w.ktx.trim() === ''), [workers]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set(noKtxWorkers.map(w => w.id)));
-  const [targetKtx, setTargetKtx] = useState<string>('KTX 1');
+  const [targetKtx, setTargetKtx] = useState<string>(() => ktxNames[0] || 'KTX 1');
   const [assigning, setAssigning] = useState(false);
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 50;
@@ -624,7 +626,7 @@ function BulkAssignKtxModal({
           <div className="p-4 rounded-xl border-2 border-primary/30 bg-primary/5">
             <p className="text-sm font-bold text-foreground mb-3">Gán về KTX:</p>
             <div className="flex gap-3 flex-wrap">
-              {['KTX 1', 'KTX 2', 'KTX 3'].map(ktx => (
+              {ktxNames.map(ktx => (
                 <label key={ktx} className={`flex items-center gap-2 px-5 py-2.5 rounded-lg border-2 cursor-pointer transition-all font-bold text-sm ${targetKtx === ktx ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-card text-foreground hover:border-primary/50'}`}>
                   <input type="radio" name="bulk-ktx" value={ktx} checked={targetKtx === ktx} onChange={() => setTargetKtx(ktx)} className="hidden" />
                   {ktx}

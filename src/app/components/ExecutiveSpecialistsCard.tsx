@@ -12,12 +12,12 @@ import { createClient } from '@/lib/supabase/client';
 import {
   DutyKtx,
   SpecialistWithDuty,
-  COMMON_KTX_OPTIONS,
   getTodayDateVietnam,
   fetchDutyAssignmentsFromSupabase,
   upsertDutyAssignmentToSupabase,
   batchUpsertDutyAssignmentsToSupabase
 } from '@/lib/dutyRoster';
+import { useKtxStructure } from '@/lib/ktxStructure';
 
 interface SpecialistItem {
   id: string;
@@ -65,6 +65,7 @@ export default function ExecutiveSpecialistsCard({
 }: ExecutiveSpecialistsCardProps) {
   const { user, isAdmin } = useAuth();
   const router = useRouter();
+  const { ktxNames } = useKtxStructure();
 
   // Local state
   const [internalProfiles, setInternalProfiles] = useState<SpecialistItem[]>([]);
@@ -312,6 +313,7 @@ export default function ExecutiveSpecialistsCard({
   const onDutyList = useMemo(() => mergedSpecialists.filter(s => s.status === 'on_duty' && s.dutyKtx !== 'Nghỉ'), [mergedSpecialists]);
   const offDutyList = useMemo(() => mergedSpecialists.filter(s => s.status === 'off_duty' || s.dutyKtx === 'Nghỉ'), [mergedSpecialists]);
 
+  // Unique KTX values currently in use
   const activeKtxList = useMemo(() => {
     const set = new Set<string>();
     mergedSpecialists.forEach(s => {
@@ -319,6 +321,15 @@ export default function ExecutiveSpecialistsCard({
     });
     return Array.from(set);
   }, [mergedSpecialists]);
+
+  // Dynamic KTX options list: from ktxStructure + active duty values
+  const availableKtxOptions = useMemo(() => {
+    const set = new Set<string>(ktxNames);
+    activeKtxList.forEach(k => {
+      if (k && k !== 'Nghỉ') set.add(k);
+    });
+    return Array.from(set);
+  }, [ktxNames, activeKtxList]);
 
   const modalFilteredList = useMemo(() => {
     return mergedSpecialists.filter(sp => {
@@ -504,7 +515,7 @@ export default function ExecutiveSpecialistsCard({
                               : 'bg-gray-750 text-gray-400 border-gray-650 hover:bg-gray-700'
                           }`}
                         >
-                          {COMMON_KTX_OPTIONS.map(ktx => (
+                          {availableKtxOptions.map(ktx => (
                             <option key={ktx} value={ktx} className="bg-gray-800 text-white">
                               Trực {ktx}
                             </option>
@@ -696,13 +707,16 @@ export default function ExecutiveSpecialistsCard({
 
                 {/* Batch Actions for Admins */}
                 {isAdmin && (
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      onClick={() => handleBatchDuty('KTX 1')}
-                      className="px-2 py-1 text-xs font-semibold rounded-md bg-blue-600/20 text-blue-300 border border-blue-500/30 hover:bg-blue-600/30 transition-colors cursor-pointer"
-                    >
-                      Trực KTX 1
-                    </button>
+                  <div className="flex items-center gap-1 shrink-0 flex-wrap">
+                    {availableKtxOptions.slice(0, 4).map(ktx => (
+                      <button
+                        key={ktx}
+                        onClick={() => handleBatchDuty(ktx)}
+                        className="px-2 py-1 text-xs font-semibold rounded-md bg-blue-600/20 text-blue-300 border border-blue-500/30 hover:bg-blue-600/30 transition-colors cursor-pointer"
+                      >
+                        Trực {ktx}
+                      </button>
+                    ))}
                     <button
                       onClick={() => handleBatchDuty('Nghỉ')}
                       className="px-2 py-1 text-xs font-semibold rounded-md bg-gray-750 text-gray-300 border border-gray-650 hover:bg-gray-700 transition-colors cursor-pointer"
@@ -799,12 +813,12 @@ export default function ExecutiveSpecialistsCard({
                                   : 'text-gray-400 border-gray-650'
                               }`}
                             >
-                              {COMMON_KTX_OPTIONS.map(ktx => (
+                              {availableKtxOptions.map(ktx => (
                                 <option key={ktx} value={ktx} className="bg-gray-800 text-white">
                                   Trực {ktx}
                                 </option>
                               ))}
-                              {sp.dutyKtx && !COMMON_KTX_OPTIONS.includes(sp.dutyKtx) && sp.dutyKtx !== 'Nghỉ' && (
+                              {sp.dutyKtx && !availableKtxOptions.includes(sp.dutyKtx) && sp.dutyKtx !== 'Nghỉ' && (
                                 <option value={sp.dutyKtx} className="bg-gray-800 text-emerald-300">
                                   Trực {sp.dutyKtx}
                                 </option>
@@ -831,7 +845,8 @@ export default function ExecutiveSpecialistsCard({
                                 if (isOnDuty) {
                                   updateDuty(sp.id, 'Nghỉ', sp.name);
                                 } else {
-                                  updateDuty(sp.id, 'KTX 1', sp.name);
+                                  const targetKtx = availableKtxOptions[0] || (ktxNames.length > 0 ? ktxNames[0] : 'Trực');
+                                  updateDuty(sp.id, targetKtx, sp.name);
                                 }
                               }}
                               className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer select-none active:scale-95 ${
