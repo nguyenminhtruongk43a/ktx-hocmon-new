@@ -564,12 +564,28 @@ function BulkAssignKtxModal({
   onAssign: (ids: string[], ktx: string) => Promise<void>;
 }) {
   const { ktxNames } = useKtxStructure();
-  const noKtxWorkers = useMemo(() => workers.filter(w => !w.ktx || w.ktx.trim() === ''), [workers]);
+  const noKtxWorkers = useMemo(
+    () =>
+      workers.filter(
+        w =>
+          (!w.ktx || w.ktx.trim() === '') &&
+          !w.ngayRaKTX &&
+          !w.ghiChu?.includes('[Đã Check-out') &&
+          !w.ghiChu?.includes('[CHECKOUT]')
+      ),
+    [workers]
+  );
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set(noKtxWorkers.map(w => w.id)));
-  const [targetKtx, setTargetKtx] = useState<string>(() => ktxNames[0] || 'KTX 1');
+  const [targetKtx, setTargetKtx] = useState<string>(() => ktxNames[0] || '');
   const [assigning, setAssigning] = useState(false);
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 50;
+
+  useEffect(() => {
+    if (ktxNames.length > 0 && (!targetKtx || !ktxNames.includes(targetKtx))) {
+      setTargetKtx(ktxNames[0]);
+    }
+  }, [ktxNames, targetKtx]);
 
   const totalPages = Math.ceil(noKtxWorkers.length / PAGE_SIZE);
   const pageRows = noKtxWorkers.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -1047,7 +1063,17 @@ export function WorkerManagementClient() {
     }
   }, [searchParams]);
 
-  const noKtxCount = useMemo(() => workers.filter(w => !w.ktx || w.ktx.trim() === '').length, [workers]);
+  const noKtxCount = useMemo(
+    () =>
+      workers.filter(
+        w =>
+          (!w.ktx || w.ktx.trim() === '') &&
+          !w.ngayRaKTX &&
+          !w.ghiChu?.includes('[Đã Check-out') &&
+          !w.ghiChu?.includes('[CHECKOUT]')
+      ).length,
+    [workers]
+  );
 
   const filtered = useMemo(() => {
     let list = [...workers];

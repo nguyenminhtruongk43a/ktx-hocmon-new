@@ -11,7 +11,9 @@ import {
   getUniquePlatoons,
   getUniqueToTruongList,
   removeAccents,
+  compareKtxNames,
 } from '@/data/workers';
+import { useKtxStructure } from '@/lib/ktxStructure';
 
 interface Props {
   filters: FilterState;
@@ -213,7 +215,11 @@ export default function WorkerFilters({ filters, onChange, workers }: Props) {
   const set = (key: keyof FilterState, val: string | boolean) =>
     onChange({ ...filters, [key]: val });
 
-  const ktxList = getUniqueKTX(workers);
+  const { ktxNames } = useKtxStructure();
+  const ktxList = useMemo(() => {
+    const set = new Set([...getUniqueKTX(workers), ...ktxNames]);
+    return Array.from(set).sort(compareKtxNames);
+  }, [workers, ktxNames]);
   const buildingList = getUniqueBuildings(workers);
   const roomList = getUniqueRooms(workers, filters.building || undefined);
   const platoonList = getUniquePlatoons(workers);

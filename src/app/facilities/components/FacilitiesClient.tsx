@@ -210,18 +210,13 @@ function parseSheetToRows(sheet: XLSX.WorkSheet, ktxName: string): Omit<Facility
 function resolveSheets(workbook: XLSX.WorkBook): { sheetName: string; ktxName: string }[] {
   const sheets = workbook.SheetNames;
   if (sheets.length === 1) {
-    const ktx = resolveKtxFromSheetName(sheets[0]) ?? 'KTX 1';
+    const ktx = resolveKtxFromSheetName(sheets[0]) ?? sheets[0];
     return [{ sheetName: sheets[0], ktxName: ktx }];
   }
   const result: { sheetName: string; ktxName: string }[] = [];
   for (const sheetName of sheets) {
-    const ktx = resolveKtxFromSheetName(sheetName);
+    const ktx = resolveKtxFromSheetName(sheetName) ?? sheetName;
     if (ktx) result.push({ sheetName, ktxName: ktx });
-  }
-  if (result.length === 0 && sheets.length >= 2) {
-    sheets.forEach((s, i) => result.push({ sheetName: s, ktxName: `KTX ${i + 1}` }));
-  } else if (result.length === 0 && sheets.length === 1) {
-    result.push({ sheetName: sheets[0], ktxName: 'KTX 1' });
   }
   return result;
 }

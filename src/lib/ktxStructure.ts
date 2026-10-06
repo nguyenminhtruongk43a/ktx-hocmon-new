@@ -58,13 +58,12 @@ let _cachedKtxStructure: KtxBlockGroup[] | null = null;
 let _inflightPromise: Promise<KtxBlockGroup[]> | null = null;
 
 /**
- * Fetches dynamic KTX & block structure directly from 3 sources:
- * 1. `workers` table (ktx, day)
- * 2. `room_units` table (ktx, day_nha)
- * 3. `profiles` table (assigned_blocks)
+ * Fetches dynamic KTX & block structure 100% directly from Supabase (Single Source of Truth):
+ * 1. `room_units` table (ktx, day_nha) - Physical room units registered in the database
+ * 2. `workers` table (ktx, day) - Active resident allocations in the database
+ * 3. `profiles` table (assigned_blocks) - Staff block assignments in the database
  *
- * Uses pagination with .range(from, from + 999) on large tables to read all rows.
- * Normalizes KTX and day labels and combines unique combinations using Set.
+ * NO HARDCODED KTX ARRAYS. Only KTXs that physically exist in the database are returned.
  */
 export async function fetchDynamicKtxStructure(forceRefresh = false): Promise<KtxBlockGroup[]> {
   if (!forceRefresh && _cachedKtxStructure) {
@@ -96,38 +95,9 @@ export async function fetchDynamicKtxStructure(forceRefresh = false): Promise<Kt
 
       const PAGE_SIZE = 1000;
 
-      // Source 1: workers table (ktx, day)
+      // Source 1: room_units table (ktx, day_nha)
       let from = 0;
       let hasMore = true;
-      while (hasMore) {
-        const { data: workerRows, error: workerErr } = await supabase
-          .from('workers')
-          .select('ktx, day')
-          .range(from, from + PAGE_SIZE - 1);
-
-        if (workerErr) {
-          console.warn('[ktxStructure] Warning fetching workers:', workerErr.message);
-          break;
-        }
-
-        if (workerRows && workerRows.length > 0) {
-          workerRows.forEach(row => {
-            addEntry(row.ktx, row.day);
-          });
-
-          if (workerRows.length < PAGE_SIZE) {
-            hasMore = false;
-          } else {
-            from += PAGE_SIZE;
-          }
-        } else {
-          hasMore = false;
-        }
-      }
-
-      // Source 2: room_units table (ktx, day_nha)
-      from = 0;
-      hasMore = true;
       while (hasMore) {
         const { data: roomRows, error: roomErr } = await supabase
           .from('room_units')
@@ -145,6 +115,35 @@ export async function fetchDynamicKtxStructure(forceRefresh = false): Promise<Kt
           });
 
           if (roomRows.length < PAGE_SIZE) {
+            hasMore = false;
+          } else {
+            from += PAGE_SIZE;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+
+      // Source 2: workers table (ktx, day)
+      from = 0;
+      hasMore = true;
+      while (hasMore) {
+        const { data: workerRows, error: workerErr } = await supabase
+          .from('workers')
+          .select('ktx, day')
+          .range(from, from + PAGE_SIZE - 1);
+
+        if (workerErr) {
+          console.warn('[ktxStructure] Warning fetching workers:', workerErr.message);
+          break;
+        }
+
+        if (workerRows && workerRows.length > 0) {
+          workerRows.forEach(row => {
+            addEntry(row.ktx, row.day);
+          });
+
+          if (workerRows.length < PAGE_SIZE) {
             hasMore = false;
           } else {
             from += PAGE_SIZE;
@@ -176,13 +175,13 @@ export async function fetchDynamicKtxStructure(forceRefresh = false): Promise<Kt
         });
       }
 
-      // If database returned no rows, return empty array
+      // If database contains no rows, return empty list
       if (ktxMap.size === 0) {
         _cachedKtxStructure = [];
         return [];
       }
 
-      // Sort KTX names with natural sorting (KTX 2 before KTX 10)
+      // Sort KTX names with natural sorting (KTX 1, KTX 2, KTX 3, KTX 4...)
       const sortedKtxNames = Array.from(ktxMap.keys()).sort(compareKtxNames);
 
       const result: KtxBlockGroup[] = sortedKtxNames.map((ktx, index) => {

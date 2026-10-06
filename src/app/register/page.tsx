@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { useKtxStructure } from '@/lib/ktxStructure';
 import { CheckCircle2, AlertCircle, Loader2, User, X, QrCode, Home, ScanLine, CheckCircle, Camera, AlertTriangle, Check, RefreshCw } from 'lucide-react';
 
 interface RegistrationForm {
@@ -389,6 +390,7 @@ const labelCls = 'text-xs text-muted-foreground mb-1 block';
 const sectionTitleCls = 'text-sm font-semibold text-foreground flex items-center gap-2 pt-1';
 
 export default function RegisterPage() {
+  const { ktxNames } = useKtxStructure();
   const [form, setForm] = useState<RegistrationForm>(INITIAL_FORM);
   const [showScanner, setShowScanner] = useState(false);
   const [scanSuccess, setScanSuccess] = useState(false);
@@ -585,7 +587,9 @@ export default function RegisterPage() {
                   <label className={labelCls}>Khu KTX <span className="text-red-500">*</span></label>
                   <input type="text" value={form.ktx} onChange={handleField('ktx')} placeholder="VD: KTX 1, KTX 2..." list="ktx-list" className={inputCls} />
                   <datalist id="ktx-list">
-                    <option value="KTX 1" /><option value="KTX 2" /><option value="KTX 3" />
+                    {ktxNames.map(ktx => (
+                      <option key={ktx} value={ktx} />
+                    ))}
                   </datalist>
                 </div>
                 <div>

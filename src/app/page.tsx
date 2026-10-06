@@ -26,6 +26,7 @@ import {
   normalizeGender,
 } from '@/lib/roomGender';
 import { computeSystemMetrics, getActiveKtxList } from '@/lib/systemMetrics';
+import { useKtxStructure } from '@/lib/ktxStructure';
 
 const RoomDrawer = dynamic(() => import('./components/RoomDrawer'), { ssr: false });
 const DashboardCharts = dynamic(() => import('./components/DashboardCharts'), { ssr: false });
@@ -586,6 +587,7 @@ function BlockTitle({
 // ─── Main Executive Dashboard Page ─────────────────────────────────────────
 export default function OccupancyDashboardPage() {
   const { workers, loading, addWorker } = useWorkers();
+  const { ktxNames } = useKtxStructure();
   const router = useRouter();
   const [selectedKTX, setSelectedKTX] = useState<string>('all');
   const [drawerRoom, setDrawerRoom] = useState<{ ktx: string; building: string; room: string } | null>(null);
@@ -618,8 +620,8 @@ export default function OccupancyDashboardPage() {
 
   // ── Unified Single Source of Truth for all operational metrics ───────────
   const systemMetrics = useMemo(() => {
-    return computeSystemMetrics(workers, roomGenderMap, selectedKTX);
-  }, [workers, roomGenderMap, selectedKTX]);
+    return computeSystemMetrics(workers, roomGenderMap, selectedKTX, ktxNames);
+  }, [workers, roomGenderMap, selectedKTX, ktxNames]);
 
   // Dynamically retrieved KTX list that actually exist in the database (Supabase)
   // Guaranteed NO hardcoded, virtual, or empty KTXs (no KTX 4, KTX 5).

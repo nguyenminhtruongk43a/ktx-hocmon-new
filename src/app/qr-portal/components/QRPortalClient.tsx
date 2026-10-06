@@ -307,7 +307,9 @@ export default function QRPortalClient() {
         .from('worker_registrations')
         .select('*')
         .order('created_at', { ascending: false });
-      if (!error) setRegistrations(data || []);
+      if (!error) {
+        setRegistrations((data || []).filter(r => !r.ghi_chu?.startsWith('[CHECKOUT]')));
+      }
     } catch (e: any) {
       console.error('Fetch registrations error:', e.message);
     } finally {

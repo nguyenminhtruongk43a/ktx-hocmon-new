@@ -55,11 +55,14 @@ export interface SystemMetrics {
 
 /**
  * Returns strictly the list of KTX areas that actually exist and have active data
- * in the system. Guaranteed NO hardcoded, virtual, or empty KTXs (no KTX 4, KTX 5).
+ * in the database / system.
  */
-export function getActiveKtxList(workers: Worker[] = []): string[] {
+export function getActiveKtxList(
+  workers: Worker[] = [],
+  knownKtxList: string[] = []
+): string[] {
   const safeWorkers = Array.isArray(workers) ? workers : [];
-  const ktxSet = new Set<string>();
+  const ktxSet = new Set<string>(knownKtxList);
   safeWorkers.forEach(w => {
     const k = (w.ktx ?? '').trim();
     if (k) ktxSet.add(k);
@@ -74,11 +77,12 @@ export function getActiveKtxList(workers: Worker[] = []): string[] {
 export function computeSystemMetrics(
   workers: Worker[] = [],
   roomGenderMap: Record<string, 'male' | 'female' | 'auto'> = {},
-  selectedKtx: string = 'all'
+  selectedKtx: string = 'all',
+  knownKtxList: string[] = []
 ): SystemMetrics {
   const safeWorkers = Array.isArray(workers) ? workers : [];
   const safeRoomGenderMap = roomGenderMap && typeof roomGenderMap === 'object' ? roomGenderMap : {};
-  const activeKtxList = getActiveKtxList(safeWorkers);
+  const activeKtxList = getActiveKtxList(safeWorkers, knownKtxList);
 
   // Filter workers based on selected KTX
   const filteredWorkers = selectedKtx === 'all'
