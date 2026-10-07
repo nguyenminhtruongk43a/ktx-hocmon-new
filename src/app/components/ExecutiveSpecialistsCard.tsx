@@ -6,7 +6,9 @@ import { useAuth } from '@/context/AuthContext';
 import {
   UserCheck, Users, Shield, CheckCircle2, AlertCircle, Search,
   Phone, Mail, ArrowRight, UserPlus, X,
-  Calendar, RefreshCw, Radio, Copy, Check, Database
+  Calendar, RefreshCw, Radio, Copy, Check, Database,
+  Building2, MapPin, Coffee, Layers, Filter, Sparkles,
+  ChevronRight, CheckCircle, Tag
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import {
@@ -59,6 +61,73 @@ DO $$ BEGIN
     END IF;
 END $$;`;
 
+/** Helper to provide consistent, prominent theme colors for KTX 1, KTX 2, KTX 3, etc. */
+function getKtxTheme(ktxName: string) {
+  const norm = (ktxName || '').trim().toUpperCase();
+  if (norm.includes('1') || norm === 'KTX 1') {
+    return {
+      name: ktxName,
+      badgeBg: 'bg-blue-500/25 text-blue-200 border-blue-400/60 shadow-sm shadow-blue-500/20 font-bold',
+      activeTab: 'bg-blue-600 text-white shadow-md shadow-blue-500/30 border-blue-400 font-extrabold',
+      headerBg: 'bg-gradient-to-r from-blue-950/70 to-blue-900/40 border-blue-500/50 text-blue-200',
+      sectionBg: 'bg-blue-950/20 border-blue-500/30',
+      accentColor: 'text-blue-400',
+      lightAccent: 'text-blue-200',
+      dotColor: 'bg-blue-400',
+      borderGlow: 'hover:border-blue-400/70 hover:shadow-blue-500/10',
+      ringColor: 'ring-blue-500/40',
+      chipBg: 'bg-blue-500/15 text-blue-300 border-blue-500/40',
+      solidBadge: 'bg-blue-600 text-white shadow-sm font-bold',
+    };
+  }
+  if (norm.includes('2') || norm === 'KTX 2') {
+    return {
+      name: ktxName,
+      badgeBg: 'bg-amber-500/25 text-amber-200 border-amber-400/60 shadow-sm shadow-amber-500/20 font-bold',
+      activeTab: 'bg-amber-600 text-white shadow-md shadow-amber-500/30 border-amber-400 font-extrabold',
+      headerBg: 'bg-gradient-to-r from-amber-950/70 to-amber-900/40 border-amber-500/50 text-amber-200',
+      sectionBg: 'bg-amber-950/20 border-amber-500/30',
+      accentColor: 'text-amber-400',
+      lightAccent: 'text-amber-200',
+      dotColor: 'bg-amber-400',
+      borderGlow: 'hover:border-amber-400/70 hover:shadow-amber-500/10',
+      ringColor: 'ring-amber-500/40',
+      chipBg: 'bg-amber-500/15 text-amber-300 border-amber-500/40',
+      solidBadge: 'bg-amber-600 text-white shadow-sm font-bold',
+    };
+  }
+  if (norm.includes('3') || norm === 'KTX 3') {
+    return {
+      name: ktxName,
+      badgeBg: 'bg-emerald-500/25 text-emerald-200 border-emerald-400/60 shadow-sm shadow-emerald-500/20 font-bold',
+      activeTab: 'bg-emerald-600 text-white shadow-md shadow-emerald-500/30 border-emerald-400 font-extrabold',
+      headerBg: 'bg-gradient-to-r from-emerald-950/70 to-emerald-900/40 border-emerald-500/50 text-emerald-200',
+      sectionBg: 'bg-emerald-950/20 border-emerald-500/30',
+      accentColor: 'text-emerald-400',
+      lightAccent: 'text-emerald-200',
+      dotColor: 'bg-emerald-400',
+      borderGlow: 'hover:border-emerald-400/70 hover:shadow-emerald-500/10',
+      ringColor: 'ring-emerald-500/40',
+      chipBg: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40',
+      solidBadge: 'bg-emerald-600 text-white shadow-sm font-bold',
+    };
+  }
+  return {
+    name: ktxName,
+    badgeBg: 'bg-purple-500/25 text-purple-200 border-purple-400/60 shadow-sm shadow-purple-500/20 font-bold',
+    activeTab: 'bg-purple-600 text-white shadow-md shadow-purple-500/30 border-purple-400 font-extrabold',
+    headerBg: 'bg-gradient-to-r from-purple-950/70 to-purple-900/40 border-purple-500/50 text-purple-200',
+    sectionBg: 'bg-purple-950/20 border-purple-500/30',
+    accentColor: 'text-purple-400',
+    lightAccent: 'text-purple-200',
+    dotColor: 'bg-purple-400',
+    borderGlow: 'hover:border-purple-400/70 hover:shadow-purple-500/10',
+    ringColor: 'ring-purple-500/40',
+    chipBg: 'bg-purple-500/15 text-purple-300 border-purple-500/40',
+    solidBadge: 'bg-purple-600 text-white shadow-sm font-bold',
+  };
+}
+
 export default function ExecutiveSpecialistsCard({
   specialists: propsSpecialists,
   onDutyRosterChange,
@@ -76,7 +145,12 @@ export default function ExecutiveSpecialistsCard({
   const [showModal, setShowModal] = useState(false);
   const [showSqlModal, setShowSqlModal] = useState(false);
   const [copiedSql, setCopiedSql] = useState(false);
+  
+  // Filtering & View Modes
   const [activeFilter, setActiveFilter] = useState<string>('all');
+  const [cardKtxFilter, setCardKtxFilter] = useState<string>('all');
+  const [modalViewMode, setModalViewMode] = useState<'grouped' | 'list'>('grouped');
+  const [cardViewMode, setCardViewMode] = useState<'grouped' | 'list'>('list');
   const [searchQuery, setSearchQuery] = useState('');
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' | 'warning' } | null>(null);
 
@@ -313,7 +387,7 @@ export default function ExecutiveSpecialistsCard({
   const onDutyList = useMemo(() => mergedSpecialists.filter(s => s.status === 'on_duty' && s.dutyKtx !== 'Nghỉ'), [mergedSpecialists]);
   const offDutyList = useMemo(() => mergedSpecialists.filter(s => s.status === 'off_duty' || s.dutyKtx === 'Nghỉ'), [mergedSpecialists]);
 
-  // Unique KTX values currently in use
+  // Unique KTX values currently in use across duty assignments
   const activeKtxList = useMemo(() => {
     const set = new Set<string>();
     mergedSpecialists.forEach(s => {
@@ -322,7 +396,7 @@ export default function ExecutiveSpecialistsCard({
     return Array.from(set);
   }, [mergedSpecialists]);
 
-  // Dynamic KTX options list: from ktxStructure + active duty values
+  // Dynamic KTX options list: combines ktxStructure and active duty values
   const availableKtxOptions = useMemo(() => {
     const set = new Set<string>(ktxNames);
     activeKtxList.forEach(k => {
@@ -331,6 +405,23 @@ export default function ExecutiveSpecialistsCard({
     return Array.from(set);
   }, [ktxNames, activeKtxList]);
 
+  // Count specialists per KTX for fast badges
+  const countsPerKtx = useMemo(() => {
+    const map: Record<string, number> = {};
+    availableKtxOptions.forEach(ktx => {
+      map[ktx] = mergedSpecialists.filter(s => s.dutyKtx === ktx).length;
+    });
+    return map;
+  }, [availableKtxOptions, mergedSpecialists]);
+
+  // Filtered list for the outside card
+  const cardFilteredList = useMemo(() => {
+    if (cardKtxFilter === 'all') return mergedSpecialists;
+    if (cardKtxFilter === 'off_duty') return offDutyList;
+    return mergedSpecialists.filter(s => s.dutyKtx === cardKtxFilter);
+  }, [mergedSpecialists, offDutyList, cardKtxFilter]);
+
+  // Filtered list for the detailed modal
   const modalFilteredList = useMemo(() => {
     return mergedSpecialists.filter(sp => {
       const isOnDuty = sp.status === 'on_duty' && sp.dutyKtx !== 'Nghỉ';
@@ -352,6 +443,204 @@ export default function ExecutiveSpecialistsCard({
       return true;
     });
   }, [mergedSpecialists, activeFilter, searchQuery]);
+
+  // Grouping structure for KTX sections (both in Modal and widget if grouped)
+  const groupedSections = useMemo(() => {
+    const sections: {
+      key: string;
+      title: string;
+      subtitle: string;
+      ktx: string;
+      specialists: SpecialistWithDuty[];
+      isOffDuty?: boolean;
+    }[] = [];
+
+    // Add section for each available KTX
+    availableKtxOptions.forEach(ktx => {
+      const list = modalFilteredList.filter(s => s.dutyKtx === ktx);
+      sections.push({
+        key: ktx,
+        title: `Khu Vực ${ktx}`,
+        subtitle: `${list.length} chuyên viên đang trực hôm nay`,
+        ktx,
+        specialists: list,
+      });
+    });
+
+    // Add section for Off-Duty
+    const offList = modalFilteredList.filter(s => s.dutyKtx === 'Nghỉ' || s.status === 'off_duty');
+    if (offList.length > 0 || availableKtxOptions.length === 0) {
+      sections.push({
+        key: 'off_duty',
+        title: 'Nghỉ Ca / Chưa Phân Công',
+        subtitle: `${offList.length} nhân sự nghỉ ca`,
+        ktx: 'Nghỉ',
+        specialists: offList,
+        isOffDuty: true,
+      });
+    }
+
+    return sections;
+  }, [availableKtxOptions, modalFilteredList]);
+
+  // Render a Single Specialist Card (used in modal and list views)
+  const renderSpecialistItem = (sp: SpecialistWithDuty, showFullContact = true) => {
+    const isAdminUser = sp.role === 'admin';
+    const isOnDuty = sp.status === 'on_duty' && sp.dutyKtx !== 'Nghỉ';
+    const theme = isOnDuty ? getKtxTheme(sp.dutyKtx) : null;
+
+    return (
+      <div
+        key={sp.id}
+        className={`flex flex-col sm:flex-row sm:items-center justify-between p-3.5 sm:p-4 rounded-xl border transition-all duration-150 gap-3 w-full ${
+          isOnDuty
+            ? `bg-gray-800/90 border-gray-700/90 ${theme?.borderGlow || 'hover:border-blue-500/50'} shadow-sm`
+            : 'bg-gray-800/40 border-gray-750 hover:border-gray-700 opacity-90'
+        }`}
+      >
+        {/* Left: Avatar, Name, Prominent KTX Duty Tag, Role, Contact, Assigned Blocks */}
+        <div className="flex items-start gap-3 min-w-0 flex-1">
+          <div className="relative flex-shrink-0 mt-0.5">
+            <div className={`w-10 h-10 rounded-xl border font-bold text-sm flex items-center justify-center shadow-inner ${
+              isAdminUser
+                ? 'bg-purple-600/30 border-purple-500/50 text-purple-200'
+                : isOnDuty
+                ? `${theme?.badgeBg}`
+                : 'bg-blue-600/25 border-blue-500/40 text-blue-300'
+            }`}>
+              {sp.name.charAt(0).toUpperCase()}
+            </div>
+            <span className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-gray-900 shadow-sm ${
+              isOnDuty ? `${theme?.dotColor || 'bg-emerald-400'} animate-pulse` : 'bg-gray-500'
+            }`} />
+          </div>
+
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm sm:text-base font-bold text-white whitespace-normal break-words leading-snug">
+                {sp.name}
+              </span>
+              <span className={`px-2 py-0.5 rounded text-[10px] font-bold border shrink-0 ${
+                isAdminUser
+                  ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
+                  : 'bg-blue-500/15 text-blue-300 border-blue-500/30'
+              }`}>
+                {isAdminUser ? 'Quản trị viên' : 'Chuyên viên'}
+              </span>
+
+              {/* ── HIGH VISIBILITY PROMINENT KTX DUTY BADGE ── */}
+              {isOnDuty ? (
+                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold border shadow-sm ${theme?.badgeBg}`}>
+                  <span className={`w-2.5 h-2.5 rounded-full ${theme?.dotColor} animate-ping shrink-0`} />
+                  <Building2 size={12} className={theme?.accentColor} />
+                  <span>ĐANG TRỰC {sp.dutyKtx.toUpperCase()}</span>
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-gray-700/60 text-gray-400 border border-gray-600/40 shrink-0">
+                  <Coffee size={11} className="text-gray-400" />
+                  <span>Nghỉ ca hôm nay</span>
+                </span>
+              )}
+            </div>
+
+            {/* Contact Information */}
+            {showFullContact && (
+              <div className="flex items-center gap-x-3 gap-y-1 text-xs text-gray-300 flex-wrap pt-0.5">
+                {sp.email && (
+                  <span className="flex items-center gap-1 whitespace-normal break-all text-gray-300">
+                    <Mail size={12} className="text-gray-400 shrink-0" />
+                    <span>{sp.email}</span>
+                  </span>
+                )}
+                {sp.phone && (
+                  <span className="flex items-center gap-1 font-tabular text-gray-300">
+                    <Phone size={12} className="text-gray-400 shrink-0" />
+                    <span>{sp.phone}</span>
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Staff Assigned Regular Blocks */}
+            {!isAdminUser && sp.assignedBlocks && sp.assignedBlocks.length > 0 && (
+              <div className="flex items-center gap-1 text-[11px] text-gray-400 flex-wrap pt-0.5">
+                <span className="font-semibold text-gray-400">Phụ trách dãy:</span>
+                {sp.assignedBlocks.map(b => (
+                  <span key={b} className="px-1.5 py-0.5 rounded bg-gray-750 text-gray-300 border border-gray-650 text-[10px] font-semibold">
+                    {b}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right: Dynamic KTX Duty Selector & Quick Action (Admin Only) */}
+        <div className="flex items-center justify-between sm:justify-end gap-2.5 pt-2.5 sm:pt-0 border-t sm:border-t-0 border-gray-750/70 w-full sm:w-auto shrink-0">
+          <div className="space-y-1 flex-1 sm:flex-initial sm:min-w-[180px]">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+              PHÂN CÔNG TRỰC BAN
+            </label>
+            {isAdmin ? (
+              <select
+                value={isOnDuty ? sp.dutyKtx : 'Nghỉ'}
+                onChange={(e) => updateDuty(sp.id, e.target.value, sp.name)}
+                className={`w-full bg-gray-750 border rounded-lg px-2.5 py-1.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer ${
+                  isOnDuty
+                    ? `${theme?.badgeBg || 'text-blue-300 border-blue-500/40'}`
+                    : 'text-gray-400 border-gray-650'
+                }`}
+              >
+                {availableKtxOptions.map(ktx => (
+                  <option key={ktx} value={ktx} className="bg-gray-800 text-white font-semibold">
+                    Trực {ktx}
+                  </option>
+                ))}
+                {sp.dutyKtx && !availableKtxOptions.includes(sp.dutyKtx) && sp.dutyKtx !== 'Nghỉ' && (
+                  <option value={sp.dutyKtx} className="bg-gray-800 text-emerald-300 font-semibold">
+                    Trực {sp.dutyKtx}
+                  </option>
+                )}
+                <option value="Nghỉ" className="bg-gray-800 text-gray-400">
+                  Nghỉ ca
+                </option>
+              </select>
+            ) : (
+              <span className={`inline-block px-3 py-1 rounded-lg text-xs font-bold border ${
+                isOnDuty ? `${theme?.badgeBg}` : 'bg-gray-750 text-gray-400 border-gray-650'
+              }`}>
+                {isOnDuty ? `Trực ${sp.dutyKtx}` : 'Nghỉ ca'}
+              </span>
+            )}
+          </div>
+
+          {/* Quick Action Toggle Button (Admin Only) */}
+          {isAdmin && (
+            <div className="pt-4 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  if (isOnDuty) {
+                    updateDuty(sp.id, 'Nghỉ', sp.name);
+                  } else {
+                    const targetKtx = availableKtxOptions[0] || (ktxNames.length > 0 ? ktxNames[0] : 'Trực');
+                    updateDuty(sp.id, targetKtx, sp.name);
+                  }
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer select-none active:scale-95 ${
+                  isOnDuty
+                    ? 'bg-red-500/15 text-red-300 border-red-500/40 hover:bg-red-500/25'
+                    : 'bg-emerald-600/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-600/30'
+                }`}
+              >
+                {isOnDuty ? 'Cho nghỉ' : 'Bật trực'}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <>
@@ -383,7 +672,7 @@ export default function ExecutiveSpecialistsCard({
         </div>
       )}
 
-      {/* ── Main Executive Card on Dashboard ── */}
+      {/* ── Main Executive Card on Dashboard (Widget Thu Gọn Bên Ngoài) ── */}
       <div className="rounded-2xl border border-gray-700/60 bg-[#1F2937] p-3.5 sm:p-5 shadow-xl transition-all duration-200 hover:border-blue-500/40 hover:shadow-2xl flex flex-col justify-between group w-full">
         <div>
           {/* Card Header */}
@@ -414,21 +703,42 @@ export default function ExecutiveSpecialistsCard({
                   {mergedSpecialists.length}
                 </p>
                 <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                  <span className="inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-0.5 rounded-full text-[11px] sm:text-xs font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shadow-sm">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shadow-sm">
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                     {onDutyList.length} trực ban hôm nay
                   </span>
                   {offDutyList.length > 0 && (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-medium bg-gray-700/60 text-gray-400 border border-gray-600/40">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-700/60 text-gray-400 border border-gray-600/40">
                       {offDutyList.length} nghỉ ca
                     </span>
                   )}
                 </div>
               </div>
 
-              <p className="text-xs text-gray-400">
-                Phân công trực ban ({todayDate}) · {activeKtxList.length > 0 ? `Đang trực: ${activeKtxList.join(', ')}` : 'Tất cả nghỉ ca'}
-              </p>
+              {/* Sub-breakdown per KTX Area (KTX 1, KTX 2, KTX 3...) */}
+              <div className="flex items-center gap-2 text-xs text-gray-400 flex-wrap pt-0.5">
+                <span className="font-medium text-gray-400">Phân công ({todayDate}):</span>
+                {availableKtxOptions.map(ktx => {
+                  const cnt = countsPerKtx[ktx] || 0;
+                  const theme = getKtxTheme(ktx);
+                  return (
+                    <button
+                      key={ktx}
+                      onClick={() => setCardKtxFilter(ktx)}
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                        cardKtxFilter === ktx
+                          ? theme.activeTab
+                          : cnt > 0
+                          ? `${theme.badgeBg} hover:opacity-90`
+                          : 'bg-gray-800 text-gray-400 border-gray-750 hover:text-gray-200'
+                      }`}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full ${cnt > 0 ? theme.dotColor : 'bg-gray-500'}`} />
+                      <span>{ktx}: {cnt} trực</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             <div className="flex items-center gap-1.5 shrink-0">
@@ -451,34 +761,125 @@ export default function ExecutiveSpecialistsCard({
             </div>
           </div>
 
-          {/* Quick List */}
-          <div className="space-y-2 sm:space-y-2.5 mt-3 pt-2.5 border-t border-gray-700/60">
-            {mergedSpecialists.length === 0 ? (
-              <div className="py-4 text-center text-xs text-gray-400">
-                {loading ? 'Đang tải dữ liệu chuyên viên...' : 'Chưa có tài khoản chuyên viên trong hệ thống.'}
+          {/* ── 1. KTX FILTER TABS INSIDE OUTSIDE CARD ── */}
+          <div className="bg-gray-850/80 p-1.5 rounded-xl border border-gray-750/80 mt-2">
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
+              <button
+                onClick={() => setCardKtxFilter('all')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                  cardKtxFilter === 'all'
+                    ? 'bg-blue-600 text-white shadow-sm font-extrabold'
+                    : 'bg-gray-800/90 text-gray-300 hover:text-white border border-gray-700/60'
+                }`}
+              >
+                Tất cả ({mergedSpecialists.length})
+              </button>
+
+              {availableKtxOptions.map(ktx => {
+                const theme = getKtxTheme(ktx);
+                const count = countsPerKtx[ktx] || 0;
+                const isSelected = cardKtxFilter === ktx;
+                return (
+                  <button
+                    key={ktx}
+                    onClick={() => setCardKtxFilter(ktx)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 border ${
+                      isSelected
+                        ? theme.activeTab
+                        : 'bg-gray-800/90 text-gray-300 hover:text-white border-gray-700/60'
+                    }`}
+                  >
+                    <span className={`w-2 h-2 rounded-full ${count > 0 ? theme.dotColor : 'bg-gray-500'}`} />
+                    <span>Trực {ktx} ({count})</span>
+                  </button>
+                );
+              })}
+
+              <button
+                onClick={() => setCardKtxFilter('off_duty')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 border ${
+                  cardKtxFilter === 'off_duty'
+                    ? 'bg-gray-700 text-white shadow-sm font-extrabold border-gray-600'
+                    : 'bg-gray-800/90 text-gray-400 hover:text-gray-200 border-gray-700/60'
+                }`}
+              >
+                <Coffee size={12} />
+                <span>Nghỉ ca ({offDutyList.length})</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Active Filter Scope Header */}
+          {cardKtxFilter !== 'all' && (
+            <div className="mt-2.5 px-3 py-1.5 rounded-lg bg-gray-800/60 border border-gray-700/60 flex items-center justify-between gap-2 text-xs">
+              <div className="flex items-center gap-1.5">
+                <Filter size={12} className="text-blue-400" />
+                <span className="text-gray-300">
+                  Đang lọc: <strong className="text-white">{cardKtxFilter === 'off_duty' ? 'Nghỉ ca' : `Trực ${cardKtxFilter}`}</strong> ({cardFilteredList.length} chuyên viên)
+                </span>
+              </div>
+              <button
+                onClick={() => setCardKtxFilter('all')}
+                className="text-[11px] text-blue-400 hover:underline cursor-pointer font-semibold"
+              >
+                Xem tất cả
+              </button>
+            </div>
+          )}
+
+          {/* ── 2. SPECIALISTS LIST IN OUTSIDE CARD WITH PROMINENT KTX BADGES ── */}
+          <div className="space-y-2 sm:space-y-2.5 mt-2.5 pt-2.5 border-t border-gray-700/60">
+            {cardFilteredList.length === 0 ? (
+              <div className="py-6 text-center text-xs text-gray-400 bg-gray-800/40 rounded-xl border border-gray-750">
+                <Users size={20} className="mx-auto mb-1.5 text-gray-500" />
+                <p className="font-semibold text-gray-300">
+                  {cardKtxFilter === 'all'
+                    ? 'Chưa có tài khoản chuyên viên trong hệ thống.'
+                    : cardKtxFilter === 'off_duty'
+                    ? 'Tất cả chuyên viên đều đang có ca trực hôm nay.'
+                    : `Chưa có chuyên viên nào được phân công trực tại ${cardKtxFilter} hôm nay.`}
+                </p>
+                {isAdmin && cardKtxFilter !== 'all' && cardKtxFilter !== 'off_duty' && (
+                  <button
+                    onClick={() => {
+                      setShowModal(true);
+                      setActiveFilter(cardKtxFilter);
+                    }}
+                    className="mt-2 inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-blue-600/25 text-blue-300 border border-blue-500/40 text-xs font-bold hover:bg-blue-600/40 transition-colors cursor-pointer"
+                  >
+                    <span>Phân công trực {cardKtxFilter} ngay</span>
+                  </button>
+                )}
               </div>
             ) : (
-              mergedSpecialists.slice(0, 4).map((sp) => {
+              cardFilteredList.slice(0, 6).map((sp) => {
                 const isAdminUser = sp.role === 'admin';
                 const isOnDuty = sp.status === 'on_duty' && sp.dutyKtx !== 'Nghỉ';
+                const theme = isOnDuty ? getKtxTheme(sp.dutyKtx) : null;
 
                 return (
                   <div
                     key={sp.id}
-                    className="flex flex-col sm:flex-row sm:items-center justify-between rounded-xl bg-gray-800/80 border border-gray-700/50 p-2.5 sm:p-3 hover:bg-gray-750/90 hover:border-gray-600 transition-all duration-150 gap-2 sm:gap-3 w-full"
+                    className={`flex flex-col sm:flex-row sm:items-center justify-between rounded-xl p-2.5 sm:p-3 border transition-all duration-150 gap-2 sm:gap-3 w-full ${
+                      isOnDuty
+                        ? `bg-gray-800/90 border-gray-700/80 ${theme?.borderGlow || 'hover:border-blue-500/50'} shadow-sm`
+                        : 'bg-gray-800/50 border-gray-750 hover:border-gray-700'
+                    }`}
                   >
-                    {/* Left: Avatar & Full Name */}
+                    {/* Left: Avatar, Name & High-Visibility Duty Label */}
                     <div className="flex items-start gap-2.5 min-w-0 flex-1">
                       <div className="relative flex-shrink-0 mt-0.5 sm:mt-0">
                         <div className={`w-8 h-8 rounded-lg border text-xs font-bold flex items-center justify-center ${
                           isAdminUser
                             ? 'bg-purple-600/25 border-purple-500/40 text-purple-300'
+                            : isOnDuty
+                            ? `${theme?.badgeBg}`
                             : 'bg-blue-600/25 border-blue-500/40 text-blue-300'
                         }`}>
                           {sp.name.charAt(0).toUpperCase()}
                         </div>
                         <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-gray-900 ${
-                          isOnDuty ? 'bg-emerald-400' : 'bg-gray-500'
+                          isOnDuty ? `${theme?.dotColor || 'bg-emerald-400'} animate-pulse` : 'bg-gray-500'
                         }`} />
                       </div>
 
@@ -489,16 +890,29 @@ export default function ExecutiveSpecialistsCard({
                           </span>
                           {isAdminUser ? (
                             <span className="text-[9px] px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 font-semibold shrink-0">
-                              Quản trị viên
+                              Admin
                             </span>
                           ) : (
                             <span className="text-[9px] px-1.5 py-0.2 rounded bg-blue-500/15 text-blue-300 border border-blue-500/30 font-semibold shrink-0">
                               Chuyên viên
                             </span>
                           )}
+
+                          {/* PROMINENT KTX BADGE IN WIDGET */}
+                          {isOnDuty ? (
+                            <span className={`inline-flex items-center gap-1 text-[11px] px-2.5 py-0.5 rounded-full font-extrabold border ${theme?.badgeBg}`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${theme?.dotColor} animate-pulse`} />
+                              <span>ĐANG TRỰC {sp.dutyKtx.toUpperCase()}</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md text-gray-400 bg-gray-750 border border-gray-700 font-medium">
+                              <Coffee size={10} />
+                              <span>Nghỉ ca</span>
+                            </span>
+                          )}
                         </div>
                         <p className="text-[10px] sm:text-[11px] text-gray-400 whitespace-normal break-words font-tabular mt-0.5">
-                          {sp.email || sp.phone || 'Nhân sự vận hành'}
+                          {sp.email || sp.phone || 'Nhân sự vận hành KTX'}
                         </p>
                       </div>
                     </div>
@@ -509,14 +923,14 @@ export default function ExecutiveSpecialistsCard({
                         <select
                           value={isOnDuty ? sp.dutyKtx : 'Nghỉ'}
                           onChange={(e) => updateDuty(sp.id, e.target.value, sp.name)}
-                          className={`text-[11px] font-bold py-1 px-2.5 rounded-lg border cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-400 ${
+                          className={`text-xs font-bold py-1 px-2.5 rounded-lg border cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-400 ${
                             isOnDuty
-                              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30'
+                              ? `${theme?.badgeBg || 'bg-blue-500/20 text-blue-300 border-blue-500/40'}`
                               : 'bg-gray-750 text-gray-400 border-gray-650 hover:bg-gray-700'
                           }`}
                         >
                           {availableKtxOptions.map(ktx => (
-                            <option key={ktx} value={ktx} className="bg-gray-800 text-white">
+                            <option key={ktx} value={ktx} className="bg-gray-800 text-white font-semibold">
                               Trực {ktx}
                             </option>
                           ))}
@@ -525,12 +939,12 @@ export default function ExecutiveSpecialistsCard({
                           </option>
                         </select>
                       ) : (
-                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] sm:text-[11px] font-bold border ${
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border ${
                           isOnDuty
-                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                            ? `${theme?.badgeBg}`
                             : 'bg-gray-750 text-gray-400 border-gray-650'
                         }`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${isOnDuty ? 'bg-emerald-400' : 'bg-gray-500'}`} />
+                          <span className={`w-1.5 h-1.5 rounded-full ${isOnDuty ? theme?.dotColor : 'bg-gray-500'}`} />
                           <span>{isOnDuty ? `Trực ${sp.dutyKtx}` : 'Nghỉ ca'}</span>
                         </span>
                       )}
@@ -548,7 +962,7 @@ export default function ExecutiveSpecialistsCard({
             onClick={() => setShowModal(true)}
             className="text-xs font-bold text-blue-400 hover:text-blue-300 flex items-center gap-1.5 transition-colors group/btn cursor-pointer"
           >
-            <span>Phân công trực ban ({mergedSpecialists.length})</span>
+            <span>Phân công trực ban chi tiết ({mergedSpecialists.length})</span>
             <ArrowRight size={13} className="group-hover/btn:translate-x-1 transition-transform shrink-0" />
           </button>
 
@@ -556,12 +970,12 @@ export default function ExecutiveSpecialistsCard({
             onClick={() => router.push('/user-management')}
             className="text-[11px] font-semibold text-gray-400 hover:text-gray-200 flex items-center gap-1 transition-colors shrink-0 cursor-pointer"
           >
-            <span>Tài khoản</span>
+            <span>Quản lý tài khoản</span>
           </button>
         </div>
       </div>
 
-      {/* ── Comprehensive Duty Roster Modal (Full Supabase & Realtime Sync) ── */}
+      {/* ── MODAL CHI TIẾT: PHÂN CÔNG TRỰC BAN CHUYÊN VIÊN THEO NGÀY ── */}
       {showModal && (
         <div className="fixed inset-0 z-50 p-2 sm:p-4 md:p-6 bg-black/80 backdrop-blur-sm flex items-center justify-center overflow-y-auto">
           <div className="bg-[#1F2937] border border-gray-700 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col my-auto text-gray-100 overflow-hidden">
@@ -577,8 +991,8 @@ export default function ExecutiveSpecialistsCard({
                     <h2 className="text-sm sm:text-lg font-bold text-white tracking-tight whitespace-normal break-words">
                       Phân Công Trực Ban Chuyên Viên Theo Ngày
                     </h2>
-                    <span className="px-2 py-0.5 text-[10px] sm:text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-full shrink-0">
-                      {onDutyList.length}/{mergedSpecialists.length} Trực ban
+                    <span className="px-2.5 py-0.5 text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-full shrink-0">
+                      {onDutyList.length}/{mergedSpecialists.length} Đang trực ban
                     </span>
                   </div>
                   <p className="text-[11px] sm:text-xs text-gray-400 mt-0.5">
@@ -624,38 +1038,53 @@ export default function ExecutiveSpecialistsCard({
               </div>
             )}
 
-            {/* Compact Grid Statistics */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-2.5 sm:p-3 bg-gray-850/60 border-b border-gray-700/60 shrink-0">
+            {/* ── GRID STATISTICS PER KTX AREA (KTX 1, KTX 2, KTX 3...) ── */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-2 p-2.5 sm:p-3 bg-gray-850/60 border-b border-gray-700/60 shrink-0 overflow-x-auto">
               <div className="bg-blue-950/30 border border-blue-500/30 rounded-xl p-2 sm:p-2.5">
                 <p className="text-[10px] sm:text-[11px] font-semibold text-blue-300 uppercase">Tổng nhân sự</p>
                 <p className="text-base sm:text-lg font-bold text-blue-400 font-tabular mt-0.5">{mergedSpecialists.length} người</p>
               </div>
 
-              <div className="bg-emerald-950/30 border border-emerald-500/30 rounded-xl p-2 sm:p-2.5">
-                <p className="text-[10px] sm:text-[11px] font-semibold text-emerald-300 uppercase">Đang trực ban</p>
-                <p className="text-base sm:text-lg font-bold text-emerald-400 font-tabular mt-0.5">{onDutyList.length} người</p>
-              </div>
+              {availableKtxOptions.map(ktx => {
+                const theme = getKtxTheme(ktx);
+                const cnt = countsPerKtx[ktx] || 0;
+                return (
+                  <button
+                    key={ktx}
+                    onClick={() => setActiveFilter(ktx)}
+                    className={`${theme.headerBg} border rounded-xl p-2 sm:p-2.5 text-left transition-all hover:opacity-90 cursor-pointer`}
+                  >
+                    <p className={`text-[10px] sm:text-[11px] font-bold ${theme.accentColor} uppercase flex items-center gap-1`}>
+                      <Building2 size={11} />
+                      <span>Trực {ktx}</span>
+                    </p>
+                    <p className={`text-base sm:text-lg font-extrabold ${theme.accentColor} font-tabular mt-0.5`}>
+                      {cnt} người
+                    </p>
+                  </button>
+                );
+              })}
 
-              <div className="bg-gray-800/80 border border-gray-700/60 rounded-xl p-2 sm:p-2.5">
-                <p className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase">Nghỉ ca</p>
-                <p className="text-base sm:text-lg font-bold text-gray-300 font-tabular mt-0.5">{offDutyList.length} người</p>
-              </div>
-
-              <div className="bg-indigo-950/30 border border-indigo-500/30 rounded-xl p-2 sm:p-2.5">
-                <p className="text-[10px] sm:text-[11px] font-semibold text-indigo-300 uppercase">Khu vực có trực</p>
-                <p className="text-base sm:text-lg font-bold text-indigo-400 font-tabular mt-0.5">
-                  {activeKtxList.length} KTX
+              <button
+                onClick={() => setActiveFilter('off_duty')}
+                className="bg-gray-800/80 border border-gray-700/60 rounded-xl p-2 sm:p-2.5 text-left hover:bg-gray-800 transition-colors cursor-pointer"
+              >
+                <p className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase flex items-center gap-1">
+                  <Coffee size={11} />
+                  <span>Nghỉ ca</span>
                 </p>
-              </div>
+                <p className="text-base sm:text-lg font-bold text-gray-300 font-tabular mt-0.5">{offDutyList.length} người</p>
+              </button>
             </div>
 
-            {/* Filter & Search Toolbar */}
-            <div className="p-2.5 sm:p-3 border-b border-gray-700/60 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 shrink-0">
-              <div className="relative w-full max-w-md">
+            {/* ── FILTER TOOLBAR & KTX SECTION TABS ── */}
+            <div className="p-2.5 sm:p-3 border-b border-gray-700/60 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 shrink-0 bg-gray-800/50">
+              {/* Search Bar */}
+              <div className="relative w-full sm:w-64">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                 <input
                   type="text"
-                  placeholder="Tìm theo tên, email, KTX trực..."
+                  placeholder="Tìm tên, email, KTX..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   className="w-full pl-8 pr-8 py-1.5 text-xs bg-gray-800 text-gray-100 placeholder-gray-400 border border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50"
@@ -670,56 +1099,71 @@ export default function ExecutiveSpecialistsCard({
                 )}
               </div>
 
-              {/* Status Filter Tabs & Batch Admin Actions */}
-              <div className="flex items-center gap-1.5 flex-wrap justify-between sm:justify-end">
-                <div className="flex rounded-lg bg-gray-800 p-0.5 border border-gray-700">
+              {/* Status & KTX Area Filter Tabs */}
+              <div className="flex items-center gap-1.5 flex-wrap justify-between sm:justify-end flex-1">
+                <div className="flex rounded-xl bg-gray-800/90 p-1 border border-gray-700/80 flex-wrap gap-1">
                   <button
                     onClick={() => setActiveFilter('all')}
-                    className={`px-2.5 py-1 text-xs font-bold rounded-md transition-all cursor-pointer ${
+                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                       activeFilter === 'all'
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'text-gray-400 hover:text-gray-200'
+                        ? 'bg-blue-600 text-white shadow-sm font-extrabold'
+                        : 'text-gray-300 hover:text-white'
                     }`}
                   >
                     Tất cả ({mergedSpecialists.length})
                   </button>
-                  <button
-                    onClick={() => setActiveFilter('on_duty')}
-                    className={`px-2.5 py-1 text-xs font-bold rounded-md transition-all cursor-pointer ${
-                      activeFilter === 'on_duty'
-                        ? 'bg-emerald-600 text-white shadow-sm'
-                        : 'text-gray-400 hover:text-gray-200'
-                    }`}
-                  >
-                    Đang trực ({onDutyList.length})
-                  </button>
+
+                  {/* Individual KTX Area Filter Buttons (KTX 1, KTX 2, KTX 3...) */}
+                  {availableKtxOptions.map(ktx => {
+                    const theme = getKtxTheme(ktx);
+                    const count = countsPerKtx[ktx] || 0;
+                    const isSelected = activeFilter === ktx;
+                    return (
+                      <button
+                        key={ktx}
+                        onClick={() => setActiveFilter(ktx)}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 border ${
+                          isSelected
+                            ? theme.activeTab
+                            : 'bg-transparent text-gray-300 hover:text-white border-transparent hover:border-gray-700'
+                        }`}
+                      >
+                        <span className={`w-2 h-2 rounded-full ${count > 0 ? theme.dotColor : 'bg-gray-500'}`} />
+                        <span>Trực {ktx} ({count})</span>
+                      </button>
+                    );
+                  })}
+
                   <button
                     onClick={() => setActiveFilter('off_duty')}
-                    className={`px-2.5 py-1 text-xs font-bold rounded-md transition-all cursor-pointer ${
+                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
                       activeFilter === 'off_duty'
-                        ? 'bg-gray-700 text-white shadow-sm'
+                        ? 'bg-gray-700 text-white shadow-sm font-extrabold'
                         : 'text-gray-400 hover:text-gray-200'
                     }`}
                   >
-                    Nghỉ ({offDutyList.length})
+                    <Coffee size={12} />
+                    <span>Nghỉ ({offDutyList.length})</span>
                   </button>
                 </div>
 
                 {/* Batch Actions for Admins */}
                 {isAdmin && (
                   <div className="flex items-center gap-1 shrink-0 flex-wrap">
-                    {availableKtxOptions.slice(0, 4).map(ktx => (
+                    {availableKtxOptions.map(ktx => (
                       <button
                         key={ktx}
                         onClick={() => handleBatchDuty(ktx)}
-                        className="px-2 py-1 text-xs font-semibold rounded-md bg-blue-600/20 text-blue-300 border border-blue-500/30 hover:bg-blue-600/30 transition-colors cursor-pointer"
+                        className="px-2.5 py-1 text-xs font-bold rounded-lg bg-blue-600/20 text-blue-300 border border-blue-500/30 hover:bg-blue-600/30 transition-colors cursor-pointer"
+                        title={`Gán tất cả chuyên viên trực ${ktx}`}
                       >
-                        Trực {ktx}
+                        Tất cả trực {ktx}
                       </button>
                     ))}
                     <button
                       onClick={() => handleBatchDuty('Nghỉ')}
-                      className="px-2 py-1 text-xs font-semibold rounded-md bg-gray-750 text-gray-300 border border-gray-650 hover:bg-gray-700 transition-colors cursor-pointer"
+                      className="px-2.5 py-1 text-xs font-bold rounded-lg bg-gray-750 text-gray-300 border border-gray-650 hover:bg-gray-700 transition-colors cursor-pointer"
+                      title="Gán tất cả chuyên viên nghỉ ca"
                     >
                       Nghỉ hết
                     </button>
@@ -728,141 +1172,122 @@ export default function ExecutiveSpecialistsCard({
               </div>
             </div>
 
-            {/* Scrollable Specialist List */}
-            <div className="flex-1 overflow-y-auto p-2.5 sm:p-4 space-y-2.5 scrollbar-thin">
-              {modalFilteredList.length === 0 ? (
-                <div className="py-10 text-center text-gray-400">
-                  <Users size={28} className="mx-auto mb-2 text-gray-500" />
-                  <p className="text-xs sm:text-sm font-semibold">Không tìm thấy nhân sự phù hợp</p>
-                  <p className="text-[11px] text-gray-500 mt-0.5">Thử thay đổi từ khóa hoặc bộ lọc</p>
+            {/* Active Filter Notification Bar */}
+            {activeFilter !== 'all' && (
+              <div className="px-4 py-2 bg-gray-850 border-b border-gray-700/60 flex items-center justify-between text-xs text-gray-300">
+                <div className="flex items-center gap-2">
+                  <Building2 size={14} className="text-blue-400" />
+                  <span>
+                    Đang hiển thị danh sách: <strong className="text-white">{activeFilter === 'off_duty' ? 'Chuyên viên nghỉ ca' : `Chuyên viên trực ${activeFilter}`}</strong> ({modalFilteredList.length} người)
+                  </span>
                 </div>
-              ) : (
-                modalFilteredList.map((sp) => {
-                  const isAdminUser = sp.role === 'admin';
-                  const isOnDuty = sp.status === 'on_duty' && sp.dutyKtx !== 'Nghỉ';
+                <button
+                  onClick={() => setActiveFilter('all')}
+                  className="text-blue-400 hover:underline font-semibold cursor-pointer"
+                >
+                  Hiển thị tất cả
+                </button>
+              </div>
+            )}
 
-                  return (
-                    <div
-                      key={sp.id}
-                      className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-xl border transition-all duration-150 gap-3 w-full ${
-                        isOnDuty
-                          ? 'bg-gray-800/90 border-gray-700/80 hover:border-emerald-500/40'
-                          : 'bg-gray-800/40 border-gray-750 hover:border-gray-650 opacity-80'
-                      }`}
+            {/* Scrollable Specialist Content Area */}
+            <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4 scrollbar-thin">
+              {modalFilteredList.length === 0 ? (
+                <div className="py-12 text-center text-gray-400 bg-gray-800/30 rounded-2xl border border-gray-750">
+                  <Users size={32} className="mx-auto mb-2 text-gray-500" />
+                  <p className="text-sm sm:text-base font-bold text-gray-200">Không tìm thấy chuyên viên phù hợp</p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {activeFilter !== 'all' && activeFilter !== 'off_duty'
+                      ? `Hiện tại chưa có chuyên viên nào được phân công trực tại ${activeFilter} hôm nay.`
+                      : 'Thử thay đổi từ khóa tìm kiếm hoặc bấm tab "Tất cả".'}
+                  </p>
+                  {isAdmin && activeFilter !== 'all' && activeFilter !== 'off_duty' && (
+                    <button
+                      onClick={() => handleBatchDuty(activeFilter)}
+                      className="mt-3 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-colors cursor-pointer shadow-md shadow-blue-500/20"
                     >
-                      {/* Left: Full Name & Details */}
-                      <div className="flex items-start gap-3 min-w-0 flex-1">
-                        <div className="relative flex-shrink-0 mt-0.5">
-                          <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl border font-bold text-sm flex items-center justify-center ${
-                            isAdminUser
-                              ? 'bg-purple-600/25 border-purple-500/40 text-purple-300'
-                              : 'bg-blue-600/25 border-blue-500/40 text-blue-300'
-                          }`}>
-                            {sp.name.charAt(0).toUpperCase()}
-                          </div>
-                          <span className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-gray-800 ${
-                            isOnDuty ? 'bg-emerald-400 shadow-sm shadow-emerald-400/50' : 'bg-gray-500'
-                          }`} />
-                        </div>
+                      <UserPlus size={14} />
+                      <span>Phân công tất cả trực {activeFilter}</span>
+                    </button>
+                  )}
+                </div>
+              ) : activeFilter === 'all' && modalViewMode === 'grouped' && !searchQuery.trim() ? (
+                /* ── GROUPED VIEW BY KTX SECTIONS (PHÂN NHÓM RÕ RÀNG KTX 1, KTX 2,...) ── */
+                <div className="space-y-6">
+                  {groupedSections.map((sec) => {
+                    const theme = !sec.isOffDuty ? getKtxTheme(sec.ktx) : null;
+                    if (sec.specialists.length === 0) return null;
 
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-sm sm:text-base font-bold text-white whitespace-normal break-words leading-snug">
-                              {sp.name}
-                            </span>
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold border shrink-0 ${
-                              isAdminUser
-                                ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
-                                : 'bg-blue-500/15 text-blue-300 border-blue-500/30'
+                    return (
+                      <div
+                        key={sec.key}
+                        className={`rounded-2xl border overflow-hidden transition-all shadow-md ${
+                          !sec.isOffDuty
+                            ? `${theme?.sectionBg} border-opacity-70`
+                            : 'bg-gray-850/60 border-gray-750'
+                        }`}
+                      >
+                        {/* Section Banner Header */}
+                        <div className={`px-4 py-3 border-b flex items-center justify-between gap-3 ${
+                          !sec.isOffDuty
+                            ? `${theme?.headerBg} border-inherit`
+                            : 'bg-gray-800/90 border-gray-700/60 text-gray-300'
+                        }`}>
+                          <div className="flex items-center gap-2.5">
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs ${
+                              !sec.isOffDuty
+                                ? `${theme?.badgeBg}`
+                                : 'bg-gray-700 text-gray-300'
                             }`}>
-                              {isAdminUser ? 'Quản trị viên' : 'Chuyên viên'}
-                            </span>
+                              {!sec.isOffDuty ? <Building2 size={16} /> : <Coffee size={16} />}
+                            </div>
+                            <div>
+                              <h3 className="font-extrabold text-white text-sm sm:text-base tracking-tight flex items-center gap-2">
+                                <span>{sec.title}</span>
+                                {!sec.isOffDuty && (
+                                  <span className={`text-[11px] px-2 py-0.2 rounded-full font-bold border ${theme?.badgeBg}`}>
+                                    {sec.specialists.length} đang trực
+                                  </span>
+                                )}
+                              </h3>
+                              <p className="text-xs text-gray-400">
+                                {sec.subtitle}
+                              </p>
+                            </div>
                           </div>
 
-                          {/* Contact Info */}
-                          <div className="flex items-center gap-x-3 gap-y-1 mt-1 text-xs text-gray-300 flex-wrap">
-                            {sp.email && (
-                              <span className="flex items-center gap-1 whitespace-normal break-all text-gray-400">
-                                <Mail size={11} className="text-gray-400 shrink-0" />
-                                <span>{sp.email}</span>
-                              </span>
+                          <div className="flex items-center gap-2">
+                            {isAdmin && !sec.isOffDuty && (
+                              <button
+                                onClick={() => handleBatchDuty(sec.ktx)}
+                                className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-600/20 text-blue-300 border border-blue-500/30 text-[11px] font-bold hover:bg-blue-600/30 transition-colors cursor-pointer"
+                              >
+                                <span>Gán tất cả vào {sec.ktx}</span>
+                              </button>
                             )}
-                            {sp.phone && (
-                              <span className="flex items-center gap-1 font-tabular text-gray-400">
-                                <Phone size={11} className="text-gray-400 shrink-0" />
-                                <span>{sp.phone}</span>
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Right: Dynamic KTX Duty Selector & Toggle (Admin Only) */}
-                      <div className="flex items-center justify-between sm:justify-end gap-2.5 pt-2.5 sm:pt-0 border-t sm:border-t-0 border-gray-750/70 w-full sm:w-auto shrink-0">
-                        <div className="space-y-1 flex-1 sm:flex-initial sm:min-w-[160px]">
-                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
-                            KTX TRỰC HÔM NAY
-                          </label>
-                          {isAdmin ? (
-                            <select
-                              value={isOnDuty ? sp.dutyKtx : 'Nghỉ'}
-                              onChange={(e) => updateDuty(sp.id, e.target.value, sp.name)}
-                              className={`w-full bg-gray-750 border rounded-lg px-2.5 py-1.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer ${
-                                isOnDuty
-                                  ? 'text-emerald-300 border-emerald-500/40'
-                                  : 'text-gray-400 border-gray-650'
-                              }`}
-                            >
-                              {availableKtxOptions.map(ktx => (
-                                <option key={ktx} value={ktx} className="bg-gray-800 text-white">
-                                  Trực {ktx}
-                                </option>
-                              ))}
-                              {sp.dutyKtx && !availableKtxOptions.includes(sp.dutyKtx) && sp.dutyKtx !== 'Nghỉ' && (
-                                <option value={sp.dutyKtx} className="bg-gray-800 text-emerald-300">
-                                  Trực {sp.dutyKtx}
-                                </option>
-                              )}
-                              <option value="Nghỉ" className="bg-gray-800 text-gray-400">
-                                Nghỉ ca
-                              </option>
-                            </select>
-                          ) : (
-                            <span className={`inline-block px-2.5 py-1 rounded-lg text-xs font-bold border ${
-                              isOnDuty ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-gray-750 text-gray-400 border-gray-650'
-                            }`}>
-                              {isOnDuty ? `Trực ${sp.dutyKtx}` : 'Nghỉ ca'}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Quick Toggle Button (Admin Only) */}
-                        {isAdmin && (
-                          <div className="pt-4 shrink-0">
                             <button
-                              type="button"
-                              onClick={() => {
-                                if (isOnDuty) {
-                                  updateDuty(sp.id, 'Nghỉ', sp.name);
-                                } else {
-                                  const targetKtx = availableKtxOptions[0] || (ktxNames.length > 0 ? ktxNames[0] : 'Trực');
-                                  updateDuty(sp.id, targetKtx, sp.name);
-                                }
-                              }}
-                              className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer select-none active:scale-95 ${
-                                isOnDuty
-                                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30'
-                                  : 'bg-gray-700 text-gray-300 border-gray-650 hover:bg-gray-650'
-                              }`}
+                              onClick={() => setActiveFilter(sec.isOffDuty ? 'off_duty' : sec.ktx)}
+                              className="text-xs text-blue-400 hover:text-blue-300 font-bold flex items-center gap-1 cursor-pointer"
                             >
-                              {isOnDuty ? 'Đang trực' : 'Bật trực'}
+                              <span>Xem riêng</span>
+                              <ChevronRight size={14} />
                             </button>
                           </div>
-                        )}
+                        </div>
+
+                        {/* Section Specialists List */}
+                        <div className="p-3 sm:p-4 space-y-2.5 bg-[#1F2937]/90">
+                          {sec.specialists.map(sp => renderSpecialistItem(sp, true))}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })
+                    );
+                  })}
+                </div>
+              ) : (
+                /* ── FILTERED SINGLE KTX OR FLAT SEARCH RESULTS VIEW ── */
+                <div className="space-y-2.5">
+                  {modalFilteredList.map(sp => renderSpecialistItem(sp, true))}
+                </div>
               )}
             </div>
 
